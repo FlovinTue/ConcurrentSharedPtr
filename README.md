@@ -1,8 +1,9 @@
 # ConcurrentSharedPtr
 
-A shared pointer object that allows shared resources between threads
+A thread-safe shared pointer object that allows dynamic garbage collection when there is no explicit resource owner. Lock-free.
 
-Include:
+Includes needed:
 
-ConcurrentSharedPtr.h 
+ConcurrentSharedPtr.h
+
 AtomicOWord.h
