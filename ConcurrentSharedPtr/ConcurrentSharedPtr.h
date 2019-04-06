@@ -54,96 +54,96 @@ public:
 	inline ConcurrentSharedPtr(T* const aObject);
 
 
-							/*	Concurrency SAFE	*/
+	/*	Concurrency SAFE	*/
 
 	// May be used from any thread at any time
-	//------------------------------------------------------------------------------------------------------//
-	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>& aOther);					//		
-	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>& aOther);	//
-														//
-	inline void SafeClaim(T* const aObject);								//
-	template <class Deleter>									 	//
-	inline void SafeClaim(T* const aObject, Deleter&& aDeleter);						//
-														//
-	inline void SafeReset();										//
-	inline void SafeMove(ConcurrentSharedPtr<T>&& aFrom);							//
-	//------------------------------------------------------------------------------------------------------//
+	//--------------------------------------------------------------------------------------------------//
+	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>& aOther);							
+	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>& aOther);	
+														
+	inline void SafeClaim(T* const aObject);								
+	template <class Deleter>									 	
+	inline void SafeClaim(T* const aObject, Deleter&& aDeleter);						
+														
+	inline void SafeReset();										
+	inline void SafeMove(ConcurrentSharedPtr<T>&& aFrom);							
+	//--------------------------------------------------------------------------------------------------//
 
 
-							/*	Concurrency SAFE	*/
+	/*	Concurrency SAFE	*/
 
 	// Safe to use at all times, however, may yield fleeting results if this object is 
 	// reassigned during use
 	//--------------------------------------------------------------------------------------//
-	inline operator bool() const;								//
-												//
-	inline const bool operator==(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;	//
-	inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;	//
+	inline operator bool() const;								
+												
+	inline const bool operator==(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;	
+	inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;	
 	//--------------------------------------------------------------------------------------//
 
 
-							/*	Concurrency SAFE	*/
+	/*	Concurrency SAFE	*/
 
 	// Safe versions of move constructor / operator. Disabled by default. May be enabled
 	// by template argument
 	//--------------------------------------------------------------------------------------------------------------//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>	//
-	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>&& aOther);					//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>	//
-	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		//
+	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>	
+	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>&& aOther);					
+	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>	
+	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		
 	//--------------------------------------------------------------------------------------------------------------//
 
 
-							/*	Concurrency UNSAFE	*/
+	/*	Concurrency UNSAFE	*/
 
 	// Default versions of move constructor / operator. Assumes FROM object is unused
 	// by other threads. May be turned safe by template argument
 	//--------------------------------------------------------------------------------------------------------------//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>* = nullptr>	//
-	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>&& aOther);					//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>* = nullptr> //
-	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		//
+	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>* = nullptr>	
+	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>&& aOther);					
+	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>* = nullptr> 
+	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		
 	//--------------------------------------------------------------------------------------------------------------//
 
 
-							/*	Concurrency UNSAFE	*/
+	/*	Concurrency UNSAFE	*/
 
 	// These methods may be used for faster performance when TO and FROM objects are
 	// not in use by other threads
-	//------------------------------------------------------------------------------//
-	inline void UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		//
-	inline void UnsafeAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther);		//
-	inline void UnsafeMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		//
-	inline void UnsafeReset();							//
-	inline void UnsafeClaim(T* const aObject);					//
-	template <class Deleter>							//
-	inline void UnsafeClaim(T* const aObject, Deleter&& aDeleter);			//
-	//------------------------------------------------------------------------------//
+	//----------------------------------------------------------------------//
+	inline void UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		
+	inline void UnsafeAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther);		
+	inline void UnsafeMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		
+	inline void UnsafeReset();							
+	inline void UnsafeClaim(T* const aObject);					
+	template <class Deleter>							
+	inline void UnsafeClaim(T* const aObject, Deleter&& aDeleter);			
+	//----------------------------------------------------------------------//
 
 
-							/*	Concurrency UNSAFE	*/
+	/*	Concurrency UNSAFE	*/
 
 	// These methods may be used safely so long as no other 
 	// thread is reassigning or otherwise altering the state of 
 	// this pointer object
 	//--------------------------------------------------------------//
-	inline const size_type UseCount() const;			//
-									//
-									//
-	inline T* operator->();						//
-	inline T& operator*();						//
-									//
-	inline const T* operator->() const;				//
-	inline const T& operator*() const;				//
-									//
-									//
-	inline const T& operator[](const size_type aIndex) const;	//
-	inline T& operator[](const size_type aIndex);			//
-									//
-	const CSSharedBlock<T>* const Shared() const;			//
-	const T* const Object() const;					//
-	CSSharedBlock<T>* const Shared();				//
-	T* const Object();						//
+	inline const size_type UseCount() const;			
+									
+									
+	inline T* operator->();						
+	inline T& operator*();						
+									
+	inline const T* operator->() const;				
+	inline const T& operator*() const;				
+									
+									
+	inline const T& operator[](const size_type aIndex) const;	
+	inline T& operator[](const size_type aIndex);			
+									
+	const CSSharedBlock<T>* const Shared() const;			
+	const T* const Object() const;					
+	CSSharedBlock<T>* const Shared();				
+	T* const Object();						
 	//--------------------------------------------------------------//
 
 private:
