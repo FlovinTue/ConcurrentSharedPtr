@@ -5,7 +5,7 @@
 #include "ConcurrentSharedPtr.h"
 #include <iostream>
 
-#define CSP_MUTEX_COMPARE
+//#define CSP_MUTEX_COMPARE
 #include "Tester.h"
 
 #include <intrin.h>
