@@ -25,22 +25,22 @@
 #include <stdint.h>
 #include "AtomicOWord.h"
 
-template <class T>
-class CSSharedBlock;
-template <class T, class CSMoveType>
-class ConcurrentSharedPtr;
-
 class CSMoveSafe;
-class CSMoveUnsafe;
+class CSMoveFast;
 
-typedef CSMoveUnsafe CSMoveDefault;
-
-template <class T, class CSMoveType, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&&... aArgs);
-template <class T, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&&... aArgs);
+typedef CSMoveFast CSMoveDefault;
 
 template <class T, class CSMoveType = CSMoveDefault>
+class ConcurrentSharedPtr;
+template <class T>
+class CSSharedBlock;
+
+template <class T, class ...Args>
+inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&&... aArgs);
+template <class T, class CSMoveType, class ...Args>
+inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&&... aArgs);
+
+template <class T, class CSMoveType>
 class ConcurrentSharedPtr
 {
 public:
@@ -99,9 +99,9 @@ public:
 	// Default versions of move constructor / operator. Assumes FROM object is unused
 	// by other threads. May be turned safe by template argument
 	//--------------------------------------------------------------------------------------------------------------//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>* = nullptr>	
+	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveFast>::value>* = nullptr>	
 	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>&& aOther);					
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>* = nullptr> 
+	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveFast>::value>* = nullptr> 
 	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);		
 	//--------------------------------------------------------------------------------------------------------------//
 
@@ -193,7 +193,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr()
 	: mySharedStore()
 	, myPtr(reinterpret_cast<T*&>(myObjectStore.MyVal().myQWords[STORAGE_QWORD_OBJECTBLOCKPTR]))
 {
-	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveUnsafe>(), "Only CSMoveSafe and CSMoveUnsafe valid arguments for CSMoveType");
+	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveSafe and CSMoveUnsafe valid arguments for CSMoveType");
 }
 template <class T, class CSMoveType>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> & aOther)
@@ -202,7 +202,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedP
 	UnsafeStore(aOther.SafeCopy());
 }
 template <class T, class CSMoveType>
-template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>*>
+template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveFast>::value>*>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> && aOther)
 	: ConcurrentSharedPtr<U, CSMoveType>()
 {
@@ -274,7 +274,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::~ConcurrentSharedPtr()
 	UnsafeReset();
 }
 template <class T, class CSMoveType>
-template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveUnsafe>::value>*>
+template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveFast>::value>*>
 inline ConcurrentSharedPtr<T, CSMoveType> & ConcurrentSharedPtr<T, CSMoveType>::operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
 {
 	SafeStore(aOther.UnsafeSteal());
@@ -691,6 +691,11 @@ inline void CSSharedBlock<T>::Destroy()
 	(*this).~CSSharedBlock<T>();
 	::operator delete (reinterpret_cast<void*>(this));
 }
+template<class T, class ...Args>
+inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&& ...aArgs)
+{
+	return MakeConcurrentShared<T, CSMoveDefault>(std::forward<Args&&>(aArgs)...);
+};
 template<class T, class CSMoveType, class ...Args>
 inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 {
@@ -726,9 +731,4 @@ inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 	returnValue.myObjectStore.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_OBJECTBLOCKPTR] = objectAsInteger;
 
 	return returnValue;
-};
-template<class T, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&& ...aArgs)
-{
-	return MakeConcurrentShared<T, CSMoveDefault>(std::forward<Args&&>(aArgs)...);
 };
