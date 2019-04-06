@@ -482,12 +482,10 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::TrySwapShared(OWord & aExp
 	CSSharedBlock<T>* const shared(reinterpret_cast<CSSharedBlock<T>*>(initial.myQWords[STORAGE_QWORD_SHAREDBLOCKPTR]));
 
 	OWord desired;
-	OWord expected(aExpected);
+
 	bool returnValue(false);
 	do {
-		aExpected = expected;
-		desired = expected;
-
+		desired = aExpected;
 		desired.myWords[STORAGE_WORD_COPYREQUEST] -= 1;
 		if (!desired.myWords[STORAGE_WORD_COPYREQUEST]) {
 			desired.myDWords[STORAGE_DWORD_REASSIGNINDEX] += 1;
@@ -497,18 +495,18 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::TrySwapShared(OWord & aExp
 		if (shared)
 			++(*shared);
 
-		if (!mySharedStore.CompareAndSwap(expected, desired)) {
+		if (!mySharedStore.CompareAndSwap(aExpected, desired)) {
 			if (shared)
 				--(*shared);
 		}
 		else {
-			expected = desired;
+			aExpected = desired;
 			returnValue = !desired.myWords[STORAGE_WORD_COPYREQUEST];
 		}
 
 	} while (
-		expected.myWords[STORAGE_WORD_COPYREQUEST] &&
-		expected.myDWords[STORAGE_DWORD_REASSIGNINDEX] == initial.myDWords[STORAGE_DWORD_REASSIGNINDEX]);
+		aExpected.myWords[STORAGE_WORD_COPYREQUEST] &&
+		aExpected.myDWords[STORAGE_DWORD_REASSIGNINDEX] == initial.myDWords[STORAGE_DWORD_REASSIGNINDEX]);
 
 	return returnValue;
 }
@@ -573,10 +571,13 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeStorePtr(const OWord & aFr
 template<class T, class CSMoveType>
 inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeExchange(const OWord & aTo, const bool aDecrementPrevious)
 {
-	OWord expected;
+	OWord previous;
 	for (bool success(false); !success;) {
-		expected = mySharedStore.FetchAddToWord(1, STORAGE_WORD_COPYREQUEST);
+
+		OWord expected(mySharedStore.FetchAddToWord(1, STORAGE_WORD_COPYREQUEST));
 		expected.myWords[STORAGE_WORD_COPYREQUEST] += 1;
+
+		previous = expected;
 
 		CSSharedBlock<T>* const shared(reinterpret_cast<CSSharedBlock<T>*>(expected.myQWords[STORAGE_QWORD_SHAREDBLOCKPTR]));
 
@@ -594,7 +595,7 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeExchange(const OWord 
 			(*shared) -= 1 + static_cast<size_type>(aDecrementPrevious & success);
 		}
 	}
-	return expected;
+	return previous;
 }
 template <class T>
 class CSSharedBlock
