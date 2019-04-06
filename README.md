@@ -1,6 +1,6 @@
 # ConcurrentSharedPtr
 
-A thread-safe shared pointer object that allows dynamic garbage collection for resources with ambiguous life times. Lock-free.
+A thread-safe shared pointer object that allows dynamic garbage collection of resources with ambiguous life times. Lock-free.
 
 Includes needed:
 
