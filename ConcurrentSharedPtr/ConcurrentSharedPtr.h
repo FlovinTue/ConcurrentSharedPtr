@@ -176,8 +176,7 @@ private:
 	};
 	enum STORAGE_WORD : uint8_t
 	{
-		STORAGE_WORD_COPYREQUEST = 6,
-		STORAGE_WORD_UNSAFEFLAG = 7
+		STORAGE_WORD_COPYREQUEST = 6
 	};
 
 	template <class U = T, class CSMoveType, class ...Args>
