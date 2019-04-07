@@ -7,6 +7,12 @@
 #include "Timer.h"
 #include <mutex>
 
+template <class T>
+struct ReferenceComparison
+{
+	T* myPtr;
+	uint8_t trash[sizeof(ConcurrentSharedPtr<int>) - 8];
+};
 
 template <class T>
 struct MutextedWrapper
@@ -75,6 +81,7 @@ public:
 	MutextedWrapper<T> myTestArray[ArraySize];
 #else
 	ConcurrentSharedPtr<T> myTestArray[ArraySize];
+	ReferenceComparison<T> myReferenceComparison[ArraySize];
 #endif
 	std::atomic_flag myWorkBlock;
 
@@ -89,6 +96,7 @@ template<class ...InitArgs>
 inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArgs && ...aArgs)
 	: myWorker(NumThreads)
 	, myRng(myRd())
+	, myReferenceComparison{ nullptr }
 {
 	if (aDoInitializeArray) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
@@ -99,6 +107,7 @@ inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArg
 			myTestArray[i] = wrapper;
 #else
 			myTestArray[i] = MakeConcurrentShared<T>(std::forward<InitArgs&&>(aArgs)...);
+			myReferenceComparison[i].myPtr = new T(std::forward<InitArgs&&>(aArgs)...);
 #endif
 		}
 	}
@@ -107,6 +116,9 @@ inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArg
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline Tester<T, ArraySize, NumThreads>::~Tester()
 {
+	for (uint32_t i = 0; i < ArraySize; ++i) {
+		delete myReferenceComparison[i].myPtr;
+	}
 }
 
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
@@ -207,9 +219,8 @@ inline void Tester<T, ArraySize, NumThreads>::WorkReferenceTest(uint32_t aArrayP
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-			if (myTestArray[i]) {
-				localSum += *myTestArray[i];
-			}
+			//localSum += *myReferenceComparison[i].myPtr;
+			localSum += *myTestArray[i];
 		}
 	}
 	mySummary += localSum;

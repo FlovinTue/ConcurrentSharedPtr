@@ -16,8 +16,8 @@
 
 int main()
 {
-	const uint32_t testArraySize(256);
-	const uint32_t numThreads(4);
+	const uint32_t testArraySize(32);
+	const uint32_t numThreads(8);
 	Tester<uint64_t, testArraySize, numThreads> tester(true, rand());
 
 	const bool
@@ -27,7 +27,7 @@ int main()
 		doreferencetest(false);
 
 	uint32_t arraySweeps(10000);
-	uint32_t runs(8);
+	uint32_t runs(256);
 	float time(0.f);
 	for (uint32_t i = 0; i < runs; ++i) {
 		time += tester.Execute(arraySweeps, doassign, doreassign, doclaim, doreferencetest);

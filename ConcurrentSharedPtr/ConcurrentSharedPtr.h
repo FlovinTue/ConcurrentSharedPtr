@@ -72,18 +72,6 @@ public:
 
 	/*	Concurrency SAFE	*/
 
-	// Safe to use at all times, however, may yield fleeting results if this object is 
-	// reassigned during use
-	//--------------------------------------------------------------------------------------//
-	inline operator bool() const;
-
-	inline const bool operator==(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;
-	inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;
-	//--------------------------------------------------------------------------------------//
-
-
-	/*	Concurrency SAFE	*/
-
 	// Safe versions of move constructor / operator. Disabled by default. May be enabled
 	// by template argument
 	//--------------------------------------------------------------------------------------------------------------//
@@ -92,6 +80,18 @@ public:
 	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>
 	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
 	//--------------------------------------------------------------------------------------------------------------//
+
+
+	/*	Concurrency SAFE	*/
+
+	// Safe to use at all times, however, may yield fleeting results if this object is 
+	// reassigned during use
+	//--------------------------------------------------------------------------------------//
+	inline operator bool() const;
+
+	inline const bool operator==(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;
+	inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;
+	//--------------------------------------------------------------------------------------//
 
 
 	/*	Concurrency UNSAFE	*/
@@ -136,7 +136,6 @@ public:
 	inline const T* operator->() const;
 	inline const T& operator*() const;
 
-
 	inline const T& operator[](const size_type aIndex) const;
 	inline T& operator[](const size_type aIndex);
 
@@ -157,22 +156,19 @@ private:
 	inline const OWord UnsafeSteal();
 	inline const OWord SafeSteal();
 
-	inline void SafeStorePtr(const OWord& aFrom);
-	inline void UnsafeStorePtr(const OWord& aFrom);
-
 	inline const OWord SafeExchange(const OWord& aTo, const bool aDecrementPrevious);
+
+	inline void StorePtr(const OWord& aFrom);
 
 	template<class Deleter>
 	inline const OWord CreateShared(T* const aObject, Deleter&& aDeleter);
 	inline const bool TryIncrementAndSwap(OWord& aExpected, const OWord& aDesired);
 
-	T* const ToObject(const OWord& aFrom) const;
 	CSSharedBlock<T>* const ToShared(const OWord& aFrom) const;
 
 	enum STORAGE_QWORD : uint8_t
 	{
-		STORAGE_QWORD_SHAREDBLOCKPTR = 0,
-		STORAGE_QWORD_OBJECTBLOCKPTR = 0
+		STORAGE_QWORD_SHAREDBLOCKPTR = 0
 	};
 	enum STORAGE_DWORD : uint8_t
 	{
@@ -187,14 +183,13 @@ private:
 	template <class U = T, class CSMoveType, class ...Args>
 	friend ConcurrentSharedPtr<U, CSMoveType> MakeConcurrentShared<U, CSMoveType, Args>(Args&&...);
 
-	AtomicOWord myObjectStore;
+	T* myPtr;
 	AtomicOWord mySharedStore;
-	T* const &myPtr;
 };
 template <class T, class CSMoveType>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr()
 	: mySharedStore()
-	, myPtr(reinterpret_cast<T*&>(myObjectStore.MyVal().myQWords[STORAGE_QWORD_OBJECTBLOCKPTR]))
+	, myPtr(nullptr)
 {
 	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveSafe and CSMoveUnsafe valid arguments for CSMoveType");
 }
@@ -312,13 +307,13 @@ template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
 {
 	const OWord otherShared(aOther.mySharedStore.MyVal());
-	const OWord otherObject(aOther.myObjectStore.MyVal());
+	T* const ptr(aOther.myPtr);
 
 	aOther.mySharedStore.MyVal() = mySharedStore.MyVal();
-	aOther.myObjectStore.MyVal() = myObjectStore.MyVal();
+	aOther.myPtr = myPtr;
 
 	mySharedStore.MyVal() = otherShared;
-	myObjectStore.MyVal() = otherObject;
+	myPtr = ptr;
 }
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther)
@@ -446,7 +441,7 @@ inline const CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared(
 template <class T, class CSMoveType>
 inline const T * const ConcurrentSharedPtr<T, CSMoveType>::Object() const
 {
-	return ToObject(myObjectStore.MyVal());
+	return myPtr;
 }
 template<class T, class CSMoveType>
 inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared()
@@ -456,7 +451,7 @@ inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared()
 template<class T, class CSMoveType>
 inline T * const ConcurrentSharedPtr<T, CSMoveType>::Object()
 {
-	return ToObject(myObjectStore);
+	return myPtr;
 }
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::SafeStore(const OWord& aFrom)
@@ -468,7 +463,7 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::UnsafeSteal()
 {
 	const OWord toSteal(mySharedStore.MyVal());
 	mySharedStore.MyVal() = OWord();
-	myObjectStore.MyVal() = OWord();
+	myPtr = nullptr;
 
 	return toSteal;
 }
@@ -520,11 +515,6 @@ inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToShared(cons
 {
 	return reinterpret_cast<CSSharedBlock<T>*>(aFrom.myQWords[STORAGE_QWORD_SHAREDBLOCKPTR]);
 }
-template<class T, class CSMoveType>
-inline T* const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom) const
-{
-	return reinterpret_cast<T*>(aFrom.myQWords[STORAGE_QWORD_OBJECTBLOCKPTR]);
-}
 template <class T, class CSMoveType>
 inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeCopy()
 {
@@ -553,35 +543,14 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeStore(const OWord & aFrom)
 		--(*Shared());
 	}
 	mySharedStore.MyVal().myQWords[STORAGE_QWORD_SHAREDBLOCKPTR] = aFrom.myQWords[STORAGE_QWORD_SHAREDBLOCKPTR];
-	UnsafeStorePtr(mySharedStore.MyVal());
+	StorePtr(mySharedStore.MyVal());
 }
 template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::SafeStorePtr(const OWord & aFromShared)
+inline void ConcurrentSharedPtr<T, CSMoveType>::StorePtr(const OWord & aFromShared)
 {
 	CSSharedBlock<T>* const shared(ToShared(aFromShared));
 	T* const object(shared ? shared->Object() : nullptr);
-
-	OWord desired;
-	desired.myQWords[STORAGE_QWORD_OBJECTBLOCKPTR] = reinterpret_cast<uint64_t>(object);
-	desired.myDWords[STORAGE_DWORD_REASSIGNINDEX] = aFromShared.myDWords[STORAGE_DWORD_REASSIGNINDEX];
-
-	OWord expected(myObjectStore.MyVal());
-
-	const uint32_t veryHigh(std::numeric_limits<uint32_t>::max() / 2);
-	while (veryHigh < (expected.myDWords[STORAGE_DWORD_REASSIGNINDEX] - aFromShared.myDWords[STORAGE_DWORD_REASSIGNINDEX])
-		&& !myObjectStore.CompareAndSwap(expected, desired));
-}
-template<class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeStorePtr(const OWord & aFromShared)
-{
-	CSSharedBlock<T>* const shared(ToShared(aFromShared));
-	T* const object(shared ? shared->Object() : nullptr);
-
-	OWord desired;
-	desired.myQWords[STORAGE_QWORD_OBJECTBLOCKPTR] = reinterpret_cast<uint64_t>(object);
-	desired.myDWords[STORAGE_DWORD_REASSIGNINDEX] = aFromShared.myDWords[STORAGE_DWORD_REASSIGNINDEX];
-
-	myObjectStore.MyVal() = desired;
+	myPtr = object;
 }
 template<class T, class CSMoveType>
 inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeExchange(const OWord & aTo, const bool aDecrementPrevious)
@@ -596,7 +565,7 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeExchange(const OWord 
 		desired.myQWords[STORAGE_QWORD_SHAREDBLOCKPTR] = aTo.myQWords[STORAGE_QWORD_SHAREDBLOCKPTR];
 		desired.myDWords[STORAGE_DWORD_REASSIGNINDEX] += 1;
 
-		SafeStorePtr(desired);
+		StorePtr(desired);
 
 		if (expected.myWords[STORAGE_WORD_COPYREQUEST]) {
 			expected = mySharedStore.FetchAddToWord(1, STORAGE_WORD_COPYREQUEST);
@@ -749,10 +718,8 @@ inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 	}
 
 	uint64_t const sharedAsInteger(reinterpret_cast<uint64_t>(shared));
-	uint64_t const objectAsInteger(reinterpret_cast<uint64_t>(shared->Object()));
 
 	returnValue.mySharedStore.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_SHAREDBLOCKPTR] = sharedAsInteger;
-	returnValue.myObjectStore.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_OBJECTBLOCKPTR] = objectAsInteger;
 
 	return returnValue;
 };
