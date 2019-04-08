@@ -96,7 +96,9 @@ template<class ...InitArgs>
 inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArgs && ...aArgs)
 	: myWorker(NumThreads)
 	, myRng(myRd())
+#ifndef CSP_MUTEX_COMPARE
 	, myReferenceComparison{ nullptr }
+#endif
 {
 	if (aDoInitializeArray) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
@@ -116,9 +118,11 @@ inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArg
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline Tester<T, ArraySize, NumThreads>::~Tester()
 {
+#ifndef CSP_MUTEX_COMPARE
 	for (uint32_t i = 0; i < ArraySize; ++i) {
 		delete myReferenceComparison[i].myPtr;
 	}
+#endif
 }
 
 template<class T, uint32_t ArraySize, uint32_t NumThreads>

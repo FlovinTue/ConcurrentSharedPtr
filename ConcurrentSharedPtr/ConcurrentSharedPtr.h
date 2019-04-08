@@ -30,6 +30,8 @@ class CSMoveFast;
 
 typedef CSMoveFast CSMoveDefault;
 
+template <class T>
+class DefaultDeleter;
 template <class T, class CSMoveType = CSMoveDefault>
 class ConcurrentSharedPtr;
 template <class T>
@@ -235,11 +237,7 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject, Del
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject)
 {
-	auto deleter = [](T* aObject)
-	{
-		delete aObject;
-	};
-	SafeClaim(aObject, std::move(deleter));
+	SafeClaim(aObject, DefaultDeleter<T>());
 }
 template <class T, class CSMoveType>
 template<class Deleter>
@@ -332,11 +330,7 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeReset()
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeClaim(T * const aObject)
 {
-	auto deleter = [](T* aObject)
-	{
-		delete aObject;
-	};
-	UnsafeClaim(aObject, std::move(deleter));
+	UnsafeClaim(aObject, DefaultDeleter<T>());
 }
 template <class T, class CSMoveType>
 template<class Deleter>
@@ -683,6 +677,17 @@ inline void CSSharedBlock<T>::Destroy()
 	(*this).~CSSharedBlock<T>();
 	::operator delete (reinterpret_cast<void*>(this));
 }
+template <class T>
+class DefaultDeleter
+{
+public:
+	void operator()(T* aObject);
+};
+template<class T>
+inline void DefaultDeleter<T>::operator()(T * aObject)
+{
+	delete aObject;
+}
 template<class T, class ...Args>
 inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&& ...aArgs)
 {
@@ -722,3 +727,4 @@ inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 
 	return returnValue;
 };
+
