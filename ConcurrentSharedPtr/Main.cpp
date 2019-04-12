@@ -110,5 +110,9 @@ int main()
 	
 	sixteen.SafeReset();
 
+	ConcurrentSharedPtr<int> seventeen;
+	seventeen.PrivateAssign(twelve);
+	seventeen.PrivateMove(std::move(nine));
+
 	return 0;
 }

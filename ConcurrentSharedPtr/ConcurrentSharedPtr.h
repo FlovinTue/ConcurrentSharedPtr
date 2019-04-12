@@ -110,6 +110,16 @@ public:
 
 	/*	Concurrency UNSAFE	*/
 
+	// May be used for faster performance when TO object is unused by other 
+	// threads
+	//----------------------------------------------------------------------//
+	inline void PrivateAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther);
+	inline void PrivateMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
+	//----------------------------------------------------------------------//
+
+
+	/*	Concurrency UNSAFE	*/
+
 	// These methods may be used for faster performance when TO and FROM objects are
 	// not in use by other threads
 	//----------------------------------------------------------------------//
@@ -192,27 +202,27 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr()
 	: mySharedStore()
 	, myPtr(nullptr)
 {
-	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveSafe and CSMoveUnsafe valid arguments for CSMoveType");
+	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveFast and CSMoveUnsafe valid arguments for CSMoveType");
 }
 template <class T, class CSMoveType>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> & aOther)
 	: ConcurrentSharedPtr<T, CSMoveType>()
 {
-	UnsafeStore(aOther.SafeCopy());
+	PrivateAssign(aOther);
 }
 template <class T, class CSMoveType>
 template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveFast>::value>*>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> && aOther)
 	: ConcurrentSharedPtr<U, CSMoveType>()
 {
-	UnsafeStore(aOther.UnsafeSteal());
+	UnsafeMove(std::move(aOther));
 }
 template <class T, class CSMoveType>
 template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>*>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> && aOther)
 	: ConcurrentSharedPtr<T, CSMoveType>()
 {
-	UnsafeStore(aOther.SafeSteal());
+	PrivateMove(std::move(aOther));
 }
 template <class T, class CSMoveType>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(T * aObject)
@@ -231,8 +241,7 @@ template <class T, class CSMoveType>
 template<class Deleter>
 inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject, Deleter && aDeleter)
 {
-	const OWord toStore(CreateShared(aObject, std::forward<Deleter&&>(aDeleter)));
-	SafeStore(toStore);
+	SafeStore(CreateShared(aObject, std::forward<Deleter&&>(aDeleter)));
 }
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject)
@@ -299,6 +308,16 @@ inline ConcurrentSharedPtr<T, CSMoveType>& ConcurrentSharedPtr<T, CSMoveType>::o
 	SafeStore(toStore);
 
 	return *this;
+}
+template<class T, class CSMoveType>
+inline void ConcurrentSharedPtr<T, CSMoveType>::PrivateAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther)
+{
+	UnsafeStore(aOther.SafeCopy());
+}
+template<class T, class CSMoveType>
+inline void ConcurrentSharedPtr<T, CSMoveType>::PrivateMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
+{
+	UnsafeStore(aOther.SafeSteal());
 }
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
