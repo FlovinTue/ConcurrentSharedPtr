@@ -9,6 +9,7 @@ ConcurrentSharedPtr.h
 AtomicOWord.h
 
 
+-------------------------------------------------------------------------------------------------------------------------------
 
 
 To clarify a bit what is and what is not concurrency safe: Resetting, Assigning from or to, claiming an object to, or moving to a pointer object is concurrency safe, and will properly increment & decrement the relevant counters. Optionally moving from a pointer object can be made safe as well via template argument, or refining the default value in the ConcurrentSharedPtr.h file. 
