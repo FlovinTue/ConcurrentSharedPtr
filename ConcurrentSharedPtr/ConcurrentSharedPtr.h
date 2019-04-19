@@ -328,13 +328,13 @@ template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
 {
 	const OWord otherShared(aOther.mySharedStore.MyVal());
-	T* const ptr(aOther.myPtr);
+	T* const otherPtr(aOther.myPtr);
 
 	aOther.mySharedStore.MyVal() = mySharedStore.MyVal();
 	aOther.myPtr = myPtr;
 
 	mySharedStore.MyVal() = otherShared;
-	myPtr = ptr;
+	myPtr = otherPtr;
 }
 // Concurrency UNSAFE
 // May be used for faster performance when TO and FROM objects are unused
