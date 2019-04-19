@@ -239,7 +239,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(T * aObject)
 {
 	UnsafeClaim(aObject);
 }
-// Concurrency SAFE
+// Concurrency SAFE. The Deleter callable has signature void(T* arg)
 template <class T, class CSMoveType>
 template<class Deleter>
 inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(T* const aObject, Deleter&& aDeleter)
@@ -247,7 +247,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(T* const aObject,
 {
 	UnsafeClaim(aObject, std::forward<Deleter&&>(aDeleter));
 }
-// Concurrency SAFE
+// Concurrency SAFE. The Deleter callable has signature void(T* arg)
 template <class T, class CSMoveType>
 template<class Deleter>
 inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject, Deleter && aDeleter)
@@ -368,7 +368,7 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeClaim(T * const aObject)
 {
 	UnsafeClaim(aObject, DefaultDeleter<T>());
 }
-// Concurrency UNSAFE
+// Concurrency UNSAFE. The Deleter callable has signature void(T* arg)
 // May be used for faster performance when this object is unused by other
 // threads
 template <class T, class CSMoveType>

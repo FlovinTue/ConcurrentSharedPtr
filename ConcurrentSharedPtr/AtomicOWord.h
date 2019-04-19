@@ -277,12 +277,12 @@ OWord & AtomicOWord::MyVal()
 	return *myOWord;
 }
 #ifdef _MSC_VER
-const bool AtomicOWord::CompareAndSwapInternal(int64_t* const  aExpected, const int64_t* const  aDesired)
+const bool AtomicOWord::CompareAndSwapInternal(int64_t* const aExpected, const int64_t* const aDesired)
 {
 	return _InterlockedCompareExchange128(myAlignedRef, aDesired[1], aDesired[0], aExpected);
 }
 #elif __GNUC__
-const bool AtomicOWord::CompareAndSwapInternal(int64_t* aExpected, const int64_t* aDesired)
+const bool AtomicOWord::CompareAndSwapInternal(int64_t* const aExpected, const int64_t* const aDesired)
 {
 	bool result;
 	__asm__ __volatile__
