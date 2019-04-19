@@ -137,7 +137,7 @@ public:
 
 	// These methods may be used safely so long as no other 
 	// thread is reassigning or otherwise altering the state of 
-	// this pointer object
+	// this object
 	//--------------------------------------------------------------//
 	inline const size_type UseCount() const;
 
@@ -391,7 +391,7 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::SafeMove(ConcurrentSharedPtr<T>&
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline const typename ConcurrentSharedPtr<T, CSMoveType>::size_type ConcurrentSharedPtr<T, CSMoveType>::UseCount() const
 {
@@ -403,7 +403,7 @@ inline const typename ConcurrentSharedPtr<T, CSMoveType>::size_type ConcurrentSh
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline ConcurrentSharedPtr<T, CSMoveType>::operator bool() const
 {
@@ -411,7 +411,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::operator bool() const
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline T * ConcurrentSharedPtr<T, CSMoveType>::operator->()
 {
@@ -419,7 +419,7 @@ inline T * ConcurrentSharedPtr<T, CSMoveType>::operator->()
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline T & ConcurrentSharedPtr<T, CSMoveType>::operator*()
 {
@@ -427,7 +427,7 @@ inline T & ConcurrentSharedPtr<T, CSMoveType>::operator*()
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline const T * ConcurrentSharedPtr<T, CSMoveType>::operator->() const
 {
@@ -435,7 +435,7 @@ inline const T * ConcurrentSharedPtr<T, CSMoveType>::operator->() const
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline const T & ConcurrentSharedPtr<T, CSMoveType>::operator*() const
 {
@@ -491,7 +491,7 @@ inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aConcurre
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline const T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex) const
 {
@@ -499,7 +499,7 @@ inline const T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type 
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex)
 {
@@ -507,7 +507,7 @@ inline T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline const CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared() const
 {
@@ -515,7 +515,7 @@ inline const CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared(
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template <class T, class CSMoveType>
 inline const T * const ConcurrentSharedPtr<T, CSMoveType>::Object() const
 {
@@ -523,7 +523,7 @@ inline const T * const ConcurrentSharedPtr<T, CSMoveType>::Object() const
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template<class T, class CSMoveType>
 inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared()
 {
@@ -531,7 +531,7 @@ inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared()
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
-// otherwise altering the state of this pointer object
+// otherwise altering the state of this object
 template<class T, class CSMoveType>
 inline T * const ConcurrentSharedPtr<T, CSMoveType>::Object()
 {
@@ -808,11 +808,13 @@ inline void DefaultDeleter<T>::operator()(T * aObject)
 {
 	delete aObject;
 }
+// Constructs a ConcurrentSharedPtr object using the default MoveType
 template<class T, class ...Args>
 inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&& ...aArgs)
 {
 	return MakeConcurrentShared<T, CSMoveDefault>(std::forward<Args&&>(aArgs)...);
 };
+// Constructs a ConcurrentSharedPtr object using explicit MoveType
 template<class T, class CSMoveType, class ...Args>
 inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 {
