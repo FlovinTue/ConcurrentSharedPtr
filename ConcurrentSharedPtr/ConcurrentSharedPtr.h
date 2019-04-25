@@ -203,7 +203,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr()
 	: mySharedStore()
 	, myPtr(nullptr)
 {
-	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveFast and CSMoveUnsafe valid arguments for CSMoveType");
+	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveFast and CSMoveSafe valid arguments for CSMoveType");
 }
 // Concurrency SAFE
 template <class T, class CSMoveType>
