@@ -187,8 +187,7 @@ AtomicOWord::AtomicOWord(AtomicOWord && aOther)
 }
 AtomicOWord& AtomicOWord::operator=(AtomicOWord & aOther)
 {
-	const OWord desired(aOther.Load());
-	Store(desired);
+	Store(aOther.Load());
 	return *this;
 }
 AtomicOWord& AtomicOWord::operator=(AtomicOWord && aOther)
