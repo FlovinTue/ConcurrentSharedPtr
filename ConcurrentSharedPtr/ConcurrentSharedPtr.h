@@ -213,7 +213,7 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedP
 	PrivateAssign(aOther);
 }
 // Concurrency UNSAFE
-// Default version of move operator. Assumes FROM object is unused by other threads.
+// Default version of move constructor. Assumes FROM object is unused by other threads.
 // May be turned safe by template argument
 template <class T, class CSMoveType>
 template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveFast>::value>*>
