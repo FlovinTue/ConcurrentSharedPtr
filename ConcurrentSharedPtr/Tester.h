@@ -65,13 +65,14 @@ public:
 	Tester(bool aDoInitializeArray = true, InitArgs && ...aArgs);
 	~Tester();
 
-	float Execute(uint32_t aArrayPasses, bool aDoAssign = true, bool aDoReassign = true, bool aDoClaim = true, bool aDoReferenceTest = true);
+	float Execute(uint32_t aArrayPasses, bool aDoAssign = true, bool aDoReassign = true, bool aDoClaim = true, bool aDoCASTest = true, bool aDoReferenceTest = true);
 
 
 	void WorkAssign(uint32_t aArrayPasses);
 	void WorkReassign(uint32_t aArrayPasses);
 	void WorkClaim(uint32_t aArrayPasses);
 	void WorkReferenceTest(uint32_t aArrayPasses);
+	void WorkCAS(uint32_t aArrayPasses);
 
 	void CheckPointers() const;
 
@@ -126,7 +127,7 @@ inline Tester<T, ArraySize, NumThreads>::~Tester()
 }
 
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
-inline float Tester<T, ArraySize, NumThreads>::Execute(uint32_t aArrayPasses, bool aDoAssign, bool aDoReassign, bool aDoClaim, bool aDoReferenceTest)
+inline float Tester<T, ArraySize, NumThreads>::Execute(uint32_t aArrayPasses, bool aDoAssign, bool aDoReassign, bool aDoClaim, bool aDoCASTest, bool aDoReferenceTest)
 {
 	myWorkBlock.clear();
 
@@ -142,6 +143,9 @@ inline float Tester<T, ArraySize, NumThreads>::Execute(uint32_t aArrayPasses, bo
 		}
 		if (aDoClaim) {
 			myWorker.AddTask([this, aArrayPasses]() { WorkClaim(aArrayPasses); });
+		}
+		if (aDoCASTest) {
+			myWorker.AddTask([this, aArrayPasses]() { WorkCAS(aArrayPasses); });
 		}
 	}
 
@@ -223,8 +227,32 @@ inline void Tester<T, ArraySize, NumThreads>::WorkReferenceTest(uint32_t aArrayP
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-			//localSum += *myReferenceComparison[i].myPtr;
-			localSum += *myTestArray[i];
+			localSum += *myReferenceComparison[i].myPtr;
+			//localSum += *myTestArray[i];
+		}
+	}
+	mySummary += localSum;
+#else
+	aArrayPasses;
+#endif
+}
+
+template<class T, uint32_t ArraySize, uint32_t NumThreads>
+inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
+{
+#ifndef CSP_MUTEX_COMPARE
+	while (!myWorkBlock._My_flag) {
+		std::this_thread::yield();
+	}
+
+	size_t localSum(0);
+
+	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
+		for (uint32_t i = 0; i < ArraySize; ++i) {
+			//const T* obj(myTestArray[i].Object());
+			//ConcurrentSharedPtr<T> toSwapIn(MakeConcurrentShared<T>());
+
+			//myTestArray[i].CompareAndSwap(obj, toSwapIn);
 		}
 	}
 	mySummary += localSum;
@@ -239,8 +267,13 @@ inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 #ifndef CSP_MUTEX_COMPARE
 	uint32_t count(0);
 	for (uint32_t i = 0; i < ArraySize; ++i) {
-		if (reinterpret_cast<const uint64_t>(myTestArray[i].Object()) != reinterpret_cast<const uint64_t>(myTestArray[i].Shared()->Object()))
+		const CSSharedBlock<T>* const shared(myTestArray[i].Shared());
+		const T* const directObject(myTestArray[i].Object());
+		const T* const sharedObject(shared->Object());
+
+		if (directObject != sharedObject) {
 			++count;
+		}
 	}
 	std::cout << "Mismatch shared / object count: " << count << std::endl;
 #endif

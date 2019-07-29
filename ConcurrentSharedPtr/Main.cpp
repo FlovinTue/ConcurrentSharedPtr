@@ -12,7 +12,7 @@
 #include "Timer.h"
 #include <functional>
 #include <assert.h>
-//#include <vld.h>
+#include <vld.h>
 
 int main()
 {
@@ -24,13 +24,14 @@ int main()
 		doassign(true),
 		doreassign(true),
 		doclaim(true),
+		doCAStest(true),
 		doreferencetest(false);
 
 	uint32_t arraySweeps(10000);
 	uint32_t runs(32);
 	float time(0.f);
 	for (uint32_t i = 0; i < runs; ++i) {
-		time += tester.Execute(arraySweeps, doassign, doreassign, doclaim, doreferencetest);
+		time += tester.Execute(arraySweeps, doassign, doreassign, doclaim, doCAStest, doreferencetest);
 	}
 
 #ifdef _DEBUG
@@ -69,7 +70,7 @@ int main()
 	ConcurrentSharedPtr<int, CSMoveSafe> five = std::move(two);
 	ConcurrentSharedPtr<int, CSMoveSafe> six;
 	six = std::move(five);
-
+	
 	ConcurrentSharedPtr<int> seven;
 	seven = std::move(four);
 	
@@ -89,18 +90,18 @@ int main()
 	
 	ConcurrentSharedPtr<int> twelve;
 	twelve.UnsafeClaim(integer3);
-
+	
 	int* integer4 = new int;
 	ConcurrentSharedPtr<int> thirteen;
 	thirteen.SafeClaim(integer4, [](int* aInt) { delete aInt; });
-
+	
 	int* integer5 = new int;
 	ConcurrentSharedPtr<int> fourteen;
 	fourteen.UnsafeClaim(integer5, [](int* aInt) { delete aInt; });
-
+	
 	ConcurrentSharedPtr<int> fifteen;
 	fifteen.SafeMove(std::move(fourteen));
-
+	
 	ConcurrentSharedPtr<int> sixteen;
 	sixteen.UnsafeAssign(fifteen);
 	sixteen.UnsafeMove(std::move(fourteen));
@@ -109,10 +110,13 @@ int main()
 	sixteen.SafeMove(std::move(ten));
 	
 	sixteen.SafeReset();
-
+	
 	ConcurrentSharedPtr<int> seventeen;
 	seventeen.PrivateAssign(twelve);
 	seventeen.PrivateMove(std::move(nine));
+	
+	ConcurrentSharedPtr<int>::size_type usecount = seventeen.UseCount();
+	usecount;
 
 	return 0;
 }
