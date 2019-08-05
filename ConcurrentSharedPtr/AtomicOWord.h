@@ -44,7 +44,10 @@ union OWord
 	int8_t myBytes_s[16];
 };
 
-class AtomicOWord
+#pragma warning(push)
+#pragma warning(disable : 4324)
+
+class alignas(16) AtomicOWord
 {
 private:
 	template <class T>
@@ -53,9 +56,9 @@ private:
 		using type = T;
 	};
 public:
-	AtomicOWord();
+	constexpr AtomicOWord();
+
 	AtomicOWord(AtomicOWord& aOther);
-	AtomicOWord(AtomicOWord&& aOther);
 
 	AtomicOWord& operator=(AtomicOWord& aOther);
 	AtomicOWord& operator=(AtomicOWord&& aOther);
@@ -87,18 +90,16 @@ public:
 	template <class WordType>
 	const OWord ExchangeWordType(const typename DisableDeduction<WordType>::type& aValue, const uint8_t aAtIndex);
 
-	const OWord& MyVal() const;
-	OWord& MyVal();
+	constexpr const OWord& MyVal() const;
+	constexpr OWord& MyVal();
 
 private:
-	const bool CompareAndSwapInternal(int64_t* const aExpected, const int64_t* const aDesired);
-
-	volatile int64_t myStorage[3];
 	union
 	{
-		volatile int64_t* const myAlignedRef;
-		OWord* const myOWord;
+		OWord myVal;
+		volatile int64_t myStorage[2];
 	};
+	const bool CompareAndSwapInternal(int64_t* const aExpected, const int64_t* const aDesired);
 };
 template<class WordType>
 inline const OWord AtomicOWord::FetchSubToWordType(const typename DisableDeduction<WordType>::type& aValue, const uint8_t aAtIndex)
@@ -170,17 +171,11 @@ inline const OWord AtomicOWord::ExchangeWordType(const typename DisableDeduction
 	
 	return expected;
 }
-AtomicOWord::AtomicOWord()
+constexpr AtomicOWord::AtomicOWord()
 	: myStorage{ 0 }
-	, myAlignedRef(myStorage + (reinterpret_cast<uint64_t>(myStorage) % 16) / sizeof(uint64_t))
 {
 }
 AtomicOWord::AtomicOWord(AtomicOWord & aOther)
-	: AtomicOWord()
-{
-	operator=(aOther);
-}
-AtomicOWord::AtomicOWord(AtomicOWord && aOther)
 	: AtomicOWord()
 {
 	operator=(aOther);
@@ -189,10 +184,6 @@ AtomicOWord& AtomicOWord::operator=(AtomicOWord & aOther)
 {
 	Store(aOther.Load());
 	return *this;
-}
-AtomicOWord& AtomicOWord::operator=(AtomicOWord && aOther)
-{
-	return operator=(aOther);
 }
 const bool AtomicOWord::CompareAndSwap(OWord & aExpected, const OWord & aDesired)
 {
@@ -267,18 +258,18 @@ const OWord AtomicOWord::FetchSubToByte(const uint8_t aValue, const uint8_t aAtI
 {
 	return FetchSubToWordType<decltype(aValue)>(aValue, aAtIndex);
 }
-const OWord & AtomicOWord::MyVal() const
+constexpr const OWord & AtomicOWord::MyVal() const
 {
-	return *myOWord;
+	return myVal;
 }
-OWord & AtomicOWord::MyVal()
+constexpr OWord & AtomicOWord::MyVal()
 {
-	return *myOWord;
+	return myVal;
 }
 #ifdef _MSC_VER
 const bool AtomicOWord::CompareAndSwapInternal(int64_t* const aExpected, const int64_t* const aDesired)
 {
-	return _InterlockedCompareExchange128(myAlignedRef, aDesired[1], aDesired[0], aExpected);
+	return _InterlockedCompareExchange128(&myStorage[0], aDesired[1], aDesired[0], aExpected);
 }
 #elif __GNUC__
 const bool AtomicOWord::CompareAndSwapInternal(int64_t* const aExpected, const int64_t* const aDesired)
@@ -289,7 +280,7 @@ const bool AtomicOWord::CompareAndSwapInternal(int64_t* const aExpected, const i
 		"lock cmpxchg16b %1\n\t"
 		"setz %0"
 		: "=q" (result)
-		, "+m" (*myAlignedRef)
+		, "+m" (myStorage[0])
 		, "+d" (aExpected[1])
 		, "+a" (aExpected[0])
 		: "c" (aDesired[1])
@@ -299,3 +290,5 @@ const bool AtomicOWord::CompareAndSwapInternal(int64_t* const aExpected, const i
 	return result;
 }
 #endif
+
+#pragma warning(pop)

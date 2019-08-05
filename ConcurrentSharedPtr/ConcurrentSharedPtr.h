@@ -35,12 +35,15 @@ class DefaultDeleter;
 template <class T, class CSMoveType = CSMoveDefault>
 class ConcurrentSharedPtr;
 template <class T>
-class CSSharedBlock;
+class CSControlBlock;
 
 template <class T, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&&... aArgs);
+inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&&...);
 template <class T, class CSMoveType, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&&... aArgs);
+inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&&...);
+
+#pragma warning(push)
+#pragma warning(disable : 4201)
 
 template <class T, class CSMoveType>
 class ConcurrentSharedPtr
@@ -49,6 +52,7 @@ public:
 	typedef std::size_t size_type;
 
 	inline ConcurrentSharedPtr();
+	inline ConcurrentSharedPtr(const std::nullptr_t);
 	inline ~ConcurrentSharedPtr();
 
 	template <class Deleter>
@@ -161,11 +165,17 @@ public:
 	// thread is reassigning or otherwise altering the state of 
 	// this object
 	//--------------------------------------------------------------//
-	const CSSharedBlock<T>* const Shared() const;
+	const CSControlBlock<T>* const ControlBlock() const;
 	const T* const Object() const;
 
-	CSSharedBlock<T>* const Shared();
+	CSControlBlock<T>* const ControlBlock();
 	T* const Object();
+
+	inline explicit operator T*();
+	inline explicit operator const T*() const;
+
+	inline explicit operator CSControlBlock<T>*();
+	inline explicit operator const CSControlBlock<T>*() const;
 	//--------------------------------------------------------------//
 
 private:
@@ -182,29 +192,31 @@ private:
 	inline const OWord SafeExchange(const OWord& aTo, const bool aDecrementPrevious);
 
 	template<class Deleter>
-	inline const OWord CreateShared(T* const aObject, Deleter&& aDeleter);
+	inline const OWord CreateControlBlock(T* const aObject, Deleter&& aDeleter);
 	inline const bool IncrementAndTrySwap(OWord& aExpected, const OWord& aDesired);
 	inline const bool CASInternal(OWord& aExpected, const OWord& aDesired, const bool aDecrementPrevious);
 
-	CSSharedBlock<T>* const ToShared(const OWord& aFrom);
-	T* const ToObject(const OWord& aFrom);
+	constexpr CSControlBlock<T>* const ToControlBlock(const OWord& aFrom);
+	constexpr T* const ToObject(const OWord& aFrom);
 
-	const CSSharedBlock<T>* const ToShared(const OWord& aFrom) const;
-	const T* const ToObject(const OWord& aFrom) const;
+	constexpr const CSControlBlock<T>* const ToControlBlock(const OWord& aFrom) const;
+	constexpr const T* const ToObject(const OWord& aFrom) const;
 
 	enum STORAGE_QWORD : uint8_t
 	{
-		STORAGE_QWORD_SHAREDPTR = 0,
+		STORAGE_QWORD_CONTROLBLOCKPTR = 0,
 		STORAGE_QWORD_OBJECTPTR = 1
 	};
 	enum STORAGE_WORD : uint8_t
 	{
-		STORAGE_WORD_REASSIGNINDEX = 3,
-		STORAGE_WORD_COPYREQUEST = 7
+		STORAGE_WORD_COPYREQUEST = 3,
+		STORAGE_WORD_REASSIGNINDEX = 7
 	};
 
-	template <class U = T, class CSMoveType, class ...Args>
-	friend ConcurrentSharedPtr<U, CSMoveType> MakeConcurrentShared<U, CSMoveType, Args>(Args&&...);
+	template <class T, class CSMoveType, class ...Args>
+	friend ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared<T, CSMoveType, Args>(Args&&...);
+
+	static const uint64_t PtrMask = std::numeric_limits<uint64_t>::max() >> 16;
 
 	AtomicOWord myStorage;
 };
@@ -214,6 +226,12 @@ inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr()
 	: myStorage()
 {
 	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveFast and CSMoveSafe valid arguments for CSMoveType");
+}
+// Nullptr constructor
+template<class T, class CSMoveType>
+inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(const std::nullptr_t)
+	: ConcurrentSharedPtr()
+{
 }
 // Concurrency SAFE
 template <class T, class CSMoveType>
@@ -262,7 +280,7 @@ template <class T, class CSMoveType>
 template<class Deleter>
 inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject, Deleter && aDeleter)
 {
-	SafeStore(CreateShared(aObject, std::forward<Deleter&&>(aDeleter)));
+	SafeStore(CreateControlBlock(aObject, std::forward<Deleter&&>(aDeleter)));
 }
 // Concurrency SAFE
 template <class T, class CSMoveType>
@@ -337,9 +355,9 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::PrivateMove(ConcurrentSharedPtr<
 template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
 {
-	const OWord otherShared(aOther.myStorage.MyVal());
+	const OWord otherStorage(aOther.myStorage.MyVal());
 	aOther.myStorage.MyVal() = myStorage.MyVal();
-	myStorage.MyVal() = otherShared;
+	myStorage.MyVal() = otherStorage;
 }
 // Concurrency UNSAFE
 // May be used for faster performance when TO and FROM objects are unused
@@ -380,7 +398,7 @@ template <class T, class CSMoveType>
 template <class Deleter>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeClaim(T * const aObject, Deleter && aDeleter)
 {
-	UnsafeStore(CreateShared(aObject, std::forward<Deleter&&>(aDeleter)));
+	UnsafeStore(CreateControlBlock(aObject, std::forward<Deleter&&>(aDeleter)));
 }
 // Concurrency SAFE
 template <class T, class CSMoveType>
@@ -394,24 +412,26 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::SafeMove(ConcurrentSharedPtr<T, 
 {
 	SafeStore(aFrom.SafeSteal());
 }
+// Concurrency SAFE
 template<class T, class CSMoveType>
 inline const bool ConcurrentSharedPtr<T, CSMoveType>::CompareAndSwap(const T *& aExpected, ConcurrentSharedPtr<T, CSMoveType>& aDesired)
 {
 	const OWord desired(aDesired.SafeCopy());
-	OWord expected(myStorage.MyVal());
+	OWord expected(myStorage.Load());
 
-	CSSharedBlock<T>* const otherShared(ToShared(desired));
+	CSControlBlock<T>* const otherStorage(ToControlBlock(desired));
 
 	const T* const object(ToObject(expected));
 
-	if (object == aExpected && CASInternal(expected, desired, true)) {
+	if (object == aExpected &&
+		CASInternal(expected, desired, true)) {
 		return true;
 	}
 
 	aExpected = object;
 
-	if (otherShared)
-		--(*otherShared);
+	if (otherStorage)
+		--(*otherStorage);
 
 	return false;
 }
@@ -425,7 +445,7 @@ inline const typename ConcurrentSharedPtr<T, CSMoveType>::size_type ConcurrentSh
 		return 0;
 	}
 
-	return Shared()->RefCount();
+	return ControlBlock()->RefCount();
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
@@ -537,9 +557,9 @@ inline T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex
 // thread is reassigning or otherwise altering the state of 
 // this object
 template <class T, class CSMoveType>
-inline const CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared() const
+inline const CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ControlBlock() const
 {
-	return ToShared(myStorage.MyVal());
+	return ToControlBlock(myStorage.MyVal());
 }
 // Concurrency SAFE
 // These adresses are stored locally in this object and are 
@@ -557,9 +577,9 @@ inline const T * const ConcurrentSharedPtr<T, CSMoveType>::Object() const
 // thread is reassigning or otherwise altering the state of 
 // this object
 template<class T, class CSMoveType>
-inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Shared()
+inline CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ControlBlock()
 {
-	return ToShared(myStorage.MyVal());
+	return ToControlBlock(myStorage.MyVal());
 }
 // Concurrency SAFE
 // These adresses are stored locally in this object and are 
@@ -570,6 +590,36 @@ template<class T, class CSMoveType>
 inline T * const ConcurrentSharedPtr<T, CSMoveType>::Object()
 {
 	return ToObject(myStorage.MyVal());
+}
+// Concurrency SAFE
+// These adresses are stored locally in this object and are 
+// safe to fetch. Accessing them is safe so long as no other 
+// thread is reassigning or otherwise altering the state of 
+// this object
+template<class T, class CSMoveType>
+inline ConcurrentSharedPtr<T, CSMoveType>::operator T*()
+{
+	return Object();
+}
+// Concurrency SAFE
+// These adresses are stored locally in this object and are 
+// safe to fetch. Accessing them is safe so long as no other 
+// thread is reassigning or otherwise altering the state of 
+// this object
+template<class T, class CSMoveType>
+inline ConcurrentSharedPtr<T, CSMoveType>::operator const T*() const
+{
+	return Object();
+}
+template<class T, class CSMoveType>
+inline ConcurrentSharedPtr<T, CSMoveType>::operator const CSControlBlock<T>*() const
+{
+	return ControlBlock();
+}
+template<class T, class CSMoveType>
+inline ConcurrentSharedPtr<T, CSMoveType>::operator CSControlBlock<T>*()
+{
+	return ControlBlock();
 }
 // ------------------------------------------------------------------------------------
 
@@ -598,32 +648,32 @@ template <class T, class CSMoveType>
 inline const bool ConcurrentSharedPtr<T, CSMoveType>::IncrementAndTrySwap(OWord & aExpected, const OWord & aDesired)
 {
 	const uint16_t initialReassignIndex(aExpected.myWords[STORAGE_WORD_REASSIGNINDEX]);
-	
-	CSSharedBlock<T>* const shared(ToShared(aExpected));
-	
+
+	CSControlBlock<T>* const controlBlock(ToControlBlock(aExpected));
+
 	OWord desired(aDesired);
 	desired.myWords[STORAGE_WORD_REASSIGNINDEX] = initialReassignIndex + 1;
 	desired.myWords[STORAGE_WORD_COPYREQUEST] = 0;
-	
+
 	bool returnValue(false);
 	do {
 		const uint16_t copyRequests(aExpected.myWords[STORAGE_WORD_COPYREQUEST]);
-	
-		if (shared)
-			(*shared) += copyRequests;
-	
+
+		if (controlBlock)
+			(*controlBlock) += copyRequests;
+
 		if (!myStorage.CompareAndSwap(aExpected, desired)) {
-			if (shared)
-				(*shared) -= copyRequests;
+			if (controlBlock)
+				(*controlBlock) -= copyRequests;
 		}
 		else {
 			returnValue = !static_cast<bool>(desired.myWords[STORAGE_WORD_COPYREQUEST]);
 		}
-	
+
 	} while (
 		aExpected.myWords[STORAGE_WORD_COPYREQUEST] &&
 		aExpected.myWords[STORAGE_WORD_REASSIGNINDEX] == initialReassignIndex);
-	
+
 	return returnValue;
 }
 template<class T, class CSMoveType>
@@ -631,7 +681,7 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::CASInternal(OWord & aExpec
 {
 	bool success(false);
 
-	CSSharedBlock<T>* shared(ToShared(aExpected));
+	CSControlBlock<T>* controlBlock(ToControlBlock(aExpected));
 
 	OWord desired(aDesired);
 	desired.myWords[STORAGE_WORD_REASSIGNINDEX] = aExpected.myWords[STORAGE_WORD_REASSIGNINDEX] + 1;
@@ -643,42 +693,42 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::CASInternal(OWord & aExpec
 
 		desired.myWords[STORAGE_WORD_REASSIGNINDEX] = aExpected.myWords[STORAGE_WORD_REASSIGNINDEX] + 1;
 
-		shared = ToShared(aExpected);
+		controlBlock = ToControlBlock(aExpected);
 		success = IncrementAndTrySwap(aExpected, desired);
 
-		if (shared) {
-			(*shared) -= 1 + static_cast<size_type>(aDecrementPrevious & success);
+		if (controlBlock) {
+			(*controlBlock) -= 1 + static_cast<size_type>(aDecrementPrevious & success);
 		}
 	}
 	else {
 		success = myStorage.CompareAndSwap(aExpected, desired);
 
-		if (static_cast<bool>(shared) & aDecrementPrevious & success) {
-			--(*shared);
+		if (static_cast<bool>(controlBlock) & aDecrementPrevious & success) {
+			--(*controlBlock);
 		}
 	}
 	return success;
 }
 template<class T, class CSMoveType>
-inline CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToShared(const OWord & aFrom)
+constexpr inline CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToControlBlock(const OWord & aFrom)
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
-	return reinterpret_cast<CSSharedBlock<T>* const>(aFrom.myQWords[STORAGE_QWORD_SHAREDPTR] & ptrMask);
+	return reinterpret_cast<CSControlBlock<T>* const>(aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & ptrMask);
 }
 template<class T, class CSMoveType>
-inline T* const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom)
+constexpr inline T* const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom)
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
 	return reinterpret_cast<T* const>(aFrom.myQWords[STORAGE_QWORD_OBJECTPTR] & ptrMask);
 }
 template<class T, class CSMoveType>
-inline const CSSharedBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToShared(const OWord & aFrom) const
+constexpr inline const CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToControlBlock(const OWord & aFrom) const
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
-	return reinterpret_cast<const CSSharedBlock<T>* const>(aFrom.myQWords[STORAGE_QWORD_SHAREDPTR] & ptrMask);
+	return reinterpret_cast<const CSControlBlock<T>* const>(aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & ptrMask);
 }
 template<class T, class CSMoveType>
-inline const T * const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom) const
+constexpr inline const T * const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom) const
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
 	return reinterpret_cast<const T* const>(aFrom.myQWords[STORAGE_QWORD_OBJECTPTR] & ptrMask);
@@ -688,19 +738,19 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeCopy()
 {
 	OWord initial(myStorage.FetchAddToWord(1, STORAGE_WORD_COPYREQUEST));
 	initial.myWords[STORAGE_WORD_COPYREQUEST] += 1;
-	
-	if (ToShared(initial)) {
+
+	if (ToControlBlock(initial)) {
 		OWord expected(initial);
 		IncrementAndTrySwap(expected, expected);
 	}
-	
+
 	return initial;
 }
 template <class T, class CSMoveType>
 inline const OWord ConcurrentSharedPtr<T, CSMoveType>::UnsafeCopy()
 {
 	if (operator bool()) {
-		++(*Shared());
+		++(*ControlBlock());
 	}
 	return myStorage.MyVal();
 }
@@ -708,9 +758,9 @@ template <class T, class CSMoveType>
 inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeStore(const OWord & aFrom)
 {
 	if (operator bool()) {
-		--(*Shared());
+		--(*ControlBlock());
 	}
-	myStorage.MyVal().myQWords[STORAGE_QWORD_SHAREDPTR] = aFrom.myQWords[STORAGE_QWORD_SHAREDPTR];
+	myStorage.MyVal().myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] = aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR];
 	myStorage.MyVal().myQWords[STORAGE_QWORD_OBJECTPTR] = aFrom.myQWords[STORAGE_QWORD_OBJECTPTR];
 }
 template<class T, class CSMoveType>
@@ -722,14 +772,14 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeExchange(const OWord 
 }
 template <class T, class CSMoveType>
 template<class Deleter>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::CreateShared(T* const aObject, Deleter&& aDeleter)
+inline const OWord ConcurrentSharedPtr<T, CSMoveType>::CreateControlBlock(T* const aObject, Deleter&& aDeleter)
 {
-	CSSharedBlock<T>* shared(nullptr);
+	CSControlBlock<T>* controlBlock(nullptr);
 	void* block(nullptr);
 
 	try {
-		block = ::operator new(sizeof(CSSharedBlock<T>));
-		shared = new (block) CSSharedBlock<T>(aObject, std::forward<Deleter&&>(aDeleter));
+		block = ::operator new(sizeof(CSControlBlock<T>));
+		controlBlock = new (block) CSControlBlock<T>(aObject, std::forward<Deleter&&>(aDeleter));
 	}
 	catch (...) {
 		::operator delete(block);
@@ -737,23 +787,23 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::CreateShared(T* const aOb
 		throw;
 	}
 
-	T* const object(shared->Object());
+	T* const object(controlBlock->Object());
 
 	OWord returnValue;
-	returnValue.myQWords[STORAGE_QWORD_SHAREDPTR] = reinterpret_cast<uint64_t>(shared);
+	returnValue.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] = reinterpret_cast<uint64_t>(controlBlock);
 	returnValue.myQWords[STORAGE_QWORD_OBJECTPTR] = reinterpret_cast<uint64_t>(object);
 
 	return returnValue;
 }
 template <class T>
-class CSSharedBlock
+class CSControlBlock
 {
 public:
 	typedef typename ConcurrentSharedPtr<T>::size_type size_type;
 
-	CSSharedBlock(T* const aObject);
+	CSControlBlock(T* const aObject);
 	template <class Deleter>
-	CSSharedBlock(T* const aObject, Deleter&& aDeleter);
+	CSControlBlock(T* const aObject, Deleter&& aDeleter);
 
 	T* const Object();
 	const T* const Object() const;
@@ -775,22 +825,22 @@ private:
 	std::function<void(T*)> myDeleter;
 };
 template<class T>
-inline CSSharedBlock<T>::CSSharedBlock(T* const aObject)
+inline CSControlBlock<T>::CSControlBlock(T* const aObject)
 	: myPtr(aObject)
 	, myRefCount(1)
-	, myDeleter([](T* aObject) { (*aObject).~T(); })
+	, myDeleter([](T* aObject) { aObject->~T(); })
 {
 }
 template <class T>
 template<class Deleter>
-inline CSSharedBlock<T>::CSSharedBlock(T* const aObject, Deleter&& aDeleter)
+inline CSControlBlock<T>::CSControlBlock(T* const aObject, Deleter&& aDeleter)
 	: myPtr(aObject)
 	, myRefCount(1)
 	, myDeleter(std::forward<Deleter&&>(aDeleter))
 {
 }
 template <class T>
-inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::operator--()
+inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator--()
 {
 	const size_type refCount(--myRefCount);
 	if (!refCount) {
@@ -799,12 +849,12 @@ inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::operator--()
 	return refCount;
 }
 template <class T>
-inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::operator++()
+inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator++()
 {
 	return ++myRefCount;
 }
 template <class T>
-inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::operator-=(const size_type aDecrement)
+inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator-=(const size_type aDecrement)
 {
 	const size_type refCount(myRefCount -= aDecrement);
 	if (!refCount) {
@@ -813,30 +863,30 @@ inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::operator-=(c
 	return refCount;
 }
 template <class T>
-inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::operator+=(const size_type aIncrement)
+inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator+=(const size_type aIncrement)
 {
 	return myRefCount += aIncrement;
 }
 template <class T>
-inline T* const CSSharedBlock<T>::Object()
+inline T* const CSControlBlock<T>::Object()
 {
 	return myPtr;
 }
 template<class T>
-inline const T * const CSSharedBlock<T>::Object() const
+inline const T * const CSControlBlock<T>::Object() const
 {
 	return myPtr;
 }
 template <class T>
-inline const typename CSSharedBlock<T>::size_type CSSharedBlock<T>::RefCount() const
+inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::RefCount() const
 {
 	return myRefCount.load(std::memory_order_acquire);
 }
 template <class T>
-inline void CSSharedBlock<T>::Destroy()
+inline void CSControlBlock<T>::Destroy()
 {
 	myDeleter(Object());
-	(*this).~CSSharedBlock<T>();
+	(*this).~CSControlBlock<T>();
 	::operator delete (reinterpret_cast<void*>(this));
 }
 template <class T>
@@ -862,20 +912,20 @@ inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 {
 	ConcurrentSharedPtr<T, CSMoveType> returnValue;
 
-	const size_t sharedSize(sizeof(CSSharedBlock<T>));
+	const size_t controlBlockSize(sizeof(CSControlBlock<T>));
 	const size_t objectSize(sizeof(T));
-	const size_t alignmentPadding(sharedSize % 8);
+	const size_t alignmentPadding(controlBlockSize % 8);
 
-	void* const block(::operator new(sharedSize + objectSize + alignmentPadding));
+	void* const block(::operator new(controlBlockSize + objectSize + alignmentPadding));
 
-	const size_t sharedOffset(0);
-	const size_t objectOffset(sharedOffset + sharedSize + alignmentPadding);
+	const size_t controlBlockOffset(0);
+	const size_t objectOffset(controlBlockOffset + controlBlockSize + alignmentPadding);
 
-	CSSharedBlock<T> * shared(nullptr);
+	CSControlBlock<T> * controlBlock(nullptr);
 	T* object(nullptr);
 	try {
 		object = new (reinterpret_cast<uint8_t*>(block) + objectOffset) T(std::forward<Args&&>(aArgs)...);
-		shared = new (reinterpret_cast<uint8_t*>(block) + sharedOffset) CSSharedBlock<T>(object);
+		controlBlock = new (reinterpret_cast<uint8_t*>(block) + controlBlockOffset) CSControlBlock<T>(object);
 	}
 	catch (...) {
 		if (object) {
@@ -885,8 +935,10 @@ inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
 		throw;
 	}
 
-	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_SHAREDPTR] = reinterpret_cast<uint64_t>(shared);
+	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_CONTROLBLOCKPTR] = reinterpret_cast<uint64_t>(controlBlock);
 	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_OBJECTPTR] = reinterpret_cast<uint64_t>(object);
+
 	return returnValue;
 };
 
+#pragma warning(pop)

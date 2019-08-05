@@ -14,4 +14,7 @@
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Timer.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="ConcurrentSharedPtr.natvis" />
+  </ItemGroup>
 </Project>
