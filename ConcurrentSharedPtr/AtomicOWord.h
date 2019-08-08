@@ -61,7 +61,6 @@ public:
 	AtomicOWord(AtomicOWord& aOther);
 
 	AtomicOWord& operator=(AtomicOWord& aOther);
-	AtomicOWord& operator=(AtomicOWord&& aOther);
 
 	const bool CompareAndSwap(OWord& aExpected, const OWord& aDesired);
 

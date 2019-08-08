@@ -267,7 +267,7 @@ inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 #ifndef CSP_MUTEX_COMPARE
 	uint32_t count(0);
 	for (uint32_t i = 0; i < ArraySize; ++i) {
-		const CSControlBlock<T>* const controlBlock(myTestArray[i].ControlBlock());
+		const csp::ControlBlock<T, csp::DefaultAllocator>* const controlBlock(myTestArray[i].ControlBlock());
 		const T* const directObject(myTestArray[i].Object());
 		const T* const sharedObject(controlBlock->Object());
 

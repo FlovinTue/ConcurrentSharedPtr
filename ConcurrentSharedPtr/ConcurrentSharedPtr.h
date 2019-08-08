@@ -25,55 +25,68 @@
 #include <stdint.h>
 #include "AtomicOWord.h"
 
-class CSMoveSafe;
-class CSMoveFast;
+namespace csp {
 
-typedef CSMoveFast CSMoveDefault;
+	class MoveSafe;
+	class MoveFast;
 
-template <class T>
-class DefaultDeleter;
-template <class T, class CSMoveType = CSMoveDefault>
+	typedef MoveFast MoveDefault;
+	typedef std::allocator<uint8_t> DefaultAllocator;
+
+	template <class T>
+	class DefaultDeleter;
+	template <class T, class Allocator>
+	class ControlBlock;
+}
+
+template <class T, class MoveType = csp::MoveDefault, class Allocator = csp::DefaultAllocator>
 class ConcurrentSharedPtr;
-template <class T>
-class CSControlBlock;
 
 template <class T, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&&...);
-template <class T, class CSMoveType, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&&...);
+inline ConcurrentSharedPtr<T, csp::MoveDefault> MakeConcurrentShared(Args&&...);
+template <class T, class MoveType, class ...Args>
+inline ConcurrentSharedPtr<T, MoveType, csp::DefaultAllocator> MakeConcurrentShared(Args&&...);
+template <class T, class MoveType, class Allocator, class ...Args>
+inline ConcurrentSharedPtr<T, MoveType, Allocator> MakeConcurrentShared(Allocator&, Args&&...);
 
 #pragma warning(push)
 #pragma warning(disable : 4201)
 
-template <class T, class CSMoveType>
+template <class T, class MoveType, class Allocator>
 class ConcurrentSharedPtr
 {
 public:
 	typedef std::size_t size_type;
 
+	static constexpr std::size_t BlockAllocSize = sizeof(csp::ControlBlock<T, Allocator>) + alignof(T) + sizeof(T);
+
 	inline ConcurrentSharedPtr();
 	inline ConcurrentSharedPtr(const std::nullptr_t);
 	inline ~ConcurrentSharedPtr();
 
+	inline explicit ConcurrentSharedPtr(T* const aObject);
 	template <class Deleter>
 	inline explicit ConcurrentSharedPtr(T* const aObject, Deleter&& aDeleter);
-	inline explicit ConcurrentSharedPtr(T* const aObject);
+	template <class Deleter>
+	inline explicit ConcurrentSharedPtr(T* const aObject, Deleter&& aDeleter, const Allocator& aAllocator);
 
 	/*	Concurrency SAFE	*/
 
 	// May be used from any thread at any time
 	//--------------------------------------------------------------------------------------------------//
-	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>& aOther);
-	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>& aOther);
+	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, MoveType, Allocator>& aOther);
+	inline ConcurrentSharedPtr<T, MoveType, Allocator>& operator=(ConcurrentSharedPtr<T, MoveType, Allocator>& aOther);
 
 	inline void SafeClaim(T* const aObject);
 	template <class Deleter>
 	inline void SafeClaim(T* const aObject, Deleter&& aDeleter);
+	template <class Deleter>
+	inline void SafeClaim(T* const aObject, Deleter&& aDeleter, const Allocator& aAllocator);
 
 	inline void SafeReset();
-	inline void SafeMove(ConcurrentSharedPtr<T, CSMoveType>&& aFrom);
+	inline void SafeMove(ConcurrentSharedPtr<T, MoveType, Allocator>&& aFrom);
 
-	inline const bool CompareAndSwap(const T* &aExpected, ConcurrentSharedPtr<T, CSMoveType>& aDesired);
+	inline const bool CompareAndSwap(const T* &aExpected, ConcurrentSharedPtr<T, MoveType, Allocator>& aDesired);
 
 	//--------------------------------------------------------------------------------------------------//
 
@@ -83,10 +96,10 @@ public:
 	// Safe versions of move constructor / operator. Disabled by default. May be enabled
 	// by template argument
 	//--------------------------------------------------------------------------------------------------------------//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>
-	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>* = nullptr>
-	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
+	template <class U = T, class V = MoveType, std::enable_if_t<std::is_same<V, csp::MoveSafe>::value>* = nullptr>
+	inline ConcurrentSharedPtr(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
+	template <class U = T, class V = MoveType, std::enable_if_t<std::is_same<V, csp::MoveSafe>::value>* = nullptr>
+	inline ConcurrentSharedPtr<T, MoveType, Allocator>& operator=(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
 	//--------------------------------------------------------------------------------------------------------------//
 
 
@@ -97,8 +110,8 @@ public:
 	//--------------------------------------------------------------------------------------//
 	inline operator bool() const;
 
-	inline const bool operator==(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;
-	inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const;
+	inline const bool operator==(const ConcurrentSharedPtr<T, MoveType, Allocator>& aOther) const;
+	inline const bool operator!=(const ConcurrentSharedPtr<T, MoveType, Allocator>& aOther) const;
 	//--------------------------------------------------------------------------------------//
 
 
@@ -107,10 +120,10 @@ public:
 	// Default versions of move constructor / operator. Assumes FROM object is unused
 	// by other threads. May be turned safe by template argument
 	//--------------------------------------------------------------------------------------------------------------//
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveFast>::value>* = nullptr>
-	inline ConcurrentSharedPtr<T, CSMoveType>(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
-	template <class U = T, class V = CSMoveType, std::enable_if_t<std::is_same<V, CSMoveFast>::value>* = nullptr>
-	inline ConcurrentSharedPtr<T, CSMoveType>& operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
+	template <class U = T, class V = MoveType, std::enable_if_t<std::is_same<V, csp::MoveFast>::value>* = nullptr>
+	inline ConcurrentSharedPtr<T, MoveType, Allocator>(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
+	template <class U = T, class V = MoveType, std::enable_if_t<std::is_same<V, csp::MoveFast>::value>* = nullptr>
+	inline ConcurrentSharedPtr<T, MoveType, Allocator>& operator=(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
 	//--------------------------------------------------------------------------------------------------------------//
 
 
@@ -119,8 +132,8 @@ public:
 	// May be used for faster performance when TO object is unused by other 
 	// threads
 	//----------------------------------------------------------------------//
-	inline void PrivateAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther);
-	inline void PrivateMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
+	inline void PrivateAssign(ConcurrentSharedPtr<T, MoveType, Allocator>& aOther);
+	inline void PrivateMove(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
 	//----------------------------------------------------------------------//
 
 
@@ -129,13 +142,15 @@ public:
 	// These methods may be used for faster performance when TO and FROM objects are
 	// not in use by other threads
 	//----------------------------------------------------------------------//
-	inline void UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
-	inline void UnsafeAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther);
-	inline void UnsafeMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther);
+	inline void UnsafeSwap(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
+	inline void UnsafeAssign(ConcurrentSharedPtr<T, MoveType, Allocator>& aOther);
+	inline void UnsafeMove(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther);
 	inline void UnsafeReset();
 	inline void UnsafeClaim(T* const aObject);
 	template <class Deleter>
 	inline void UnsafeClaim(T* const aObject, Deleter&& aDeleter);
+	template <class Deleter>
+	inline void UnsafeClaim(T* const aObject, Deleter&& aDeleter, const Allocator& aAllocator);
 	//----------------------------------------------------------------------//
 
 
@@ -165,17 +180,17 @@ public:
 	// thread is reassigning or otherwise altering the state of 
 	// this object
 	//--------------------------------------------------------------//
-	const CSControlBlock<T>* const ControlBlock() const;
+	const csp::ControlBlock<T, Allocator>* const ControlBlock() const;
 	const T* const Object() const;
 
-	CSControlBlock<T>* const ControlBlock();
+	csp::ControlBlock<T, Allocator>* const ControlBlock();
 	T* const Object();
 
 	inline explicit operator T*();
 	inline explicit operator const T*() const;
 
-	inline explicit operator CSControlBlock<T>*();
-	inline explicit operator const CSControlBlock<T>*() const;
+	inline explicit operator csp::ControlBlock<T, Allocator>*();
+	inline explicit operator const csp::ControlBlock<T, Allocator>*() const;
 	//--------------------------------------------------------------//
 
 private:
@@ -192,14 +207,14 @@ private:
 	inline const OWord SafeExchange(const OWord& aTo, const bool aDecrementPrevious);
 
 	template<class Deleter>
-	inline const OWord CreateControlBlock(T* const aObject, Deleter&& aDeleter);
+	inline const OWord CreateControlBlock(T* const aObject, Deleter&& aDeleter, const Allocator& aAllocator);
 	inline const bool IncrementAndTrySwap(OWord& aExpected, const OWord& aDesired);
 	inline const bool CASInternal(OWord& aExpected, const OWord& aDesired, const bool aDecrementPrevious);
 
-	constexpr CSControlBlock<T>* const ToControlBlock(const OWord& aFrom);
+	constexpr csp::ControlBlock<T, Allocator>* const ToControlBlock(const OWord& aFrom);
 	constexpr T* const ToObject(const OWord& aFrom);
 
-	constexpr const CSControlBlock<T>* const ToControlBlock(const OWord& aFrom) const;
+	constexpr const csp::ControlBlock<T, Allocator>* const ToControlBlock(const OWord& aFrom) const;
 	constexpr const T* const ToObject(const OWord& aFrom) const;
 
 	enum STORAGE_QWORD : uint8_t
@@ -213,93 +228,109 @@ private:
 		STORAGE_WORD_REASSIGNINDEX = 7
 	};
 
-	template <class T, class CSMoveType, class ...Args>
-	friend ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared<T, CSMoveType, Args>(Args&&...);
+	template <class T, class MoveType, class Allocator, class ...Args>
+	friend ConcurrentSharedPtr<T, MoveType, Allocator> MakeConcurrentShared<T, MoveType, Allocator>(Allocator&, Args&&...);
 
 	static const uint64_t PtrMask = std::numeric_limits<uint64_t>::max() >> 16;
 
 	AtomicOWord myStorage;
 };
 // Default constructor
-template <class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr()
+template <class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr()
 	: myStorage()
 {
-	static_assert(std::is_same<CSMoveType, CSMoveSafe>() | std::is_same<CSMoveType, CSMoveFast>(), "Only CSMoveFast and CSMoveSafe valid arguments for CSMoveType");
+	static_assert(std::is_same<MoveType, csp::MoveSafe>() | std::is_same<MoveType, csp::MoveFast>(), "Only csp::MoveFast and csp::MoveSafe valid arguments for MoveType");
+	static_assert(std::is_same<Allocator::value_type, uint8_t>(), "Value type for allocator must be uint8_t");
 }
 // Nullptr constructor
-template<class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(const std::nullptr_t)
+template<class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(const std::nullptr_t)
 	: ConcurrentSharedPtr()
 {
 }
 // Concurrency SAFE
-template <class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> & aOther)
-	: ConcurrentSharedPtr<T, CSMoveType>()
+template <class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, MoveType, Allocator> & aOther)
+	: ConcurrentSharedPtr<T, MoveType, Allocator>()
 {
 	PrivateAssign(aOther);
 }
 // Concurrency UNSAFE
 // Default version of move constructor. Assumes FROM object is unused by other threads.
 // May be turned safe by template argument
-template <class T, class CSMoveType>
-template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveFast>::value>*>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> && aOther)
-	: ConcurrentSharedPtr<U, CSMoveType>()
+template <class T, class MoveType, class Allocator>
+template <class U, class V, std::enable_if_t<std::is_same<V, csp::MoveFast>::value>*>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, MoveType, Allocator> && aOther)
+	: ConcurrentSharedPtr<U, MoveType>()
 {
 	UnsafeMove(std::move(aOther));
 }
 // Concurrency SAFE
 // Safe version of move constructor. Disabled by default. May be enabled by 
 // template argument
-template <class T, class CSMoveType>
-template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>*>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, CSMoveType> && aOther)
-	: ConcurrentSharedPtr<T, CSMoveType>()
+template <class T, class MoveType, class Allocator>
+template <class U, class V, std::enable_if_t<std::is_same<V, csp::MoveSafe>::value>*>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(ConcurrentSharedPtr<T, MoveType, Allocator> && aOther)
+	: ConcurrentSharedPtr<T, MoveType, Allocator>()
 {
 	PrivateMove(std::move(aOther));
 }
 // Concurrency SAFE
-template <class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(T * aObject)
-	: ConcurrentSharedPtr<T, CSMoveType>()
+template <class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(T * aObject)
+	: ConcurrentSharedPtr<T, MoveType, Allocator>()
 {
 	UnsafeClaim(aObject);
 }
 // Concurrency SAFE. The Deleter callable has signature void(T* arg)
-template <class T, class CSMoveType>
+template <class T, class MoveType, class Allocator>
 template<class Deleter>
-inline ConcurrentSharedPtr<T, CSMoveType>::ConcurrentSharedPtr(T* const aObject, Deleter&& aDeleter)
-	: ConcurrentSharedPtr<T, CSMoveType>()
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(T* const aObject, Deleter&& aDeleter)
+	: ConcurrentSharedPtr<T, MoveType, Allocator>()
 {
 	UnsafeClaim(aObject, std::forward<Deleter&&>(aDeleter));
 }
 // Concurrency SAFE. The Deleter callable has signature void(T* arg)
-template <class T, class CSMoveType>
+template<class T, class MoveType, class Allocator>
 template<class Deleter>
-inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject, Deleter && aDeleter)
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::ConcurrentSharedPtr(T * const aObject, Deleter && aDeleter, const Allocator & aAllocator)
+	: ConcurrentSharedPtr<T, MoveType, Allocator>()
 {
-	SafeStore(CreateControlBlock(aObject, std::forward<Deleter&&>(aDeleter)));
+	UnsafeClaim(aObject, std::forward<Deleter&&>(aDeleter), aAllocator);
+}
+// Concurrency SAFE. The Deleter callable has signature void(T* arg)
+template <class T, class MoveType, class Allocator>
+template<class Deleter>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::SafeClaim(T * const aObject, Deleter && aDeleter)
+{
+	const Allocator alloc;
+	SafeClaim(aObject, std::forward<Deleter&&>(aDeleter), alloc);
+}
+template<class T, class MoveType, class Allocator>
+template<class Deleter>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::SafeClaim(T * const aObject, Deleter && aDeleter, const Allocator & aAllocator)
+{
+	SafeStore(CreateControlBlock(aObject, std::forward<Deleter&&>(aDeleter), aAllocator));
 }
 // Concurrency SAFE
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::SafeClaim(T * const aObject)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::SafeClaim(T * const aObject)
 {
-	SafeClaim(aObject, DefaultDeleter<T>());
+	SafeClaim(aObject, csp::DefaultDeleter<T>());
 }
 // Destructor
-template <class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::~ConcurrentSharedPtr()
+template <class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::~ConcurrentSharedPtr()
 {
 	UnsafeReset();
 }
 // Concurrency UNSAFE
 // Default version of move operator. Assumes FROM object is unused by other threads.
 // May be turned safe by template argument
-template <class T, class CSMoveType>
-template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveFast>::value>*>
-inline ConcurrentSharedPtr<T, CSMoveType> & ConcurrentSharedPtr<T, CSMoveType>::operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
+template <class T, class MoveType, class Allocator>
+template <class U, class V, std::enable_if_t<std::is_same<V, csp::MoveFast>::value>*>
+inline ConcurrentSharedPtr<T, MoveType, Allocator> & ConcurrentSharedPtr<T, MoveType, Allocator>::operator=(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther)
 {
 	SafeStore(aOther.UnsafeSteal());
 
@@ -308,17 +339,17 @@ inline ConcurrentSharedPtr<T, CSMoveType> & ConcurrentSharedPtr<T, CSMoveType>::
 // Concurrency SAFE
 // Safe version of move operator. Disabled by default. May be enabled by 
 // template argument
-template <class T, class CSMoveType>
-template <class U, class V, std::enable_if_t<std::is_same<V, CSMoveSafe>::value>*>
-inline ConcurrentSharedPtr<T, CSMoveType> & ConcurrentSharedPtr<T, CSMoveType>::operator=(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
+template <class T, class MoveType, class Allocator>
+template <class U, class V, std::enable_if_t<std::is_same<V, csp::MoveSafe>::value>*>
+inline ConcurrentSharedPtr<T, MoveType, Allocator> & ConcurrentSharedPtr<T, MoveType, Allocator>::operator=(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther)
 {
 	SafeStore(aOther.SafeSteal());
 
 	return *this;
 }
 // Concurrency SAFE
-template <class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>& ConcurrentSharedPtr<T, CSMoveType>::operator=(ConcurrentSharedPtr<T, CSMoveType> & aOther)
+template <class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>& ConcurrentSharedPtr<T, MoveType, Allocator>::operator=(ConcurrentSharedPtr<T, MoveType, Allocator> & aOther)
 {
 	const bool sameobj(&aOther == this);
 	const bool sameref(aOther == *this);
@@ -336,24 +367,24 @@ inline ConcurrentSharedPtr<T, CSMoveType>& ConcurrentSharedPtr<T, CSMoveType>::o
 // Concurrency UNSAFE
 // May be used for faster performance when TO object is unused by other 
 // threads
-template<class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::PrivateAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther)
+template<class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::PrivateAssign(ConcurrentSharedPtr<T, MoveType, Allocator>& aOther)
 {
 	UnsafeStore(aOther.SafeCopy());
 }
 // Concurrency UNSAFE
 // May be used for faster performance when TO object is unused by other 
 // threads
-template<class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::PrivateMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
+template<class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::PrivateMove(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther)
 {
 	UnsafeStore(aOther.SafeSteal());
 }
 // Concurrency UNSAFE
 // May be used for faster performance when TO and FROM objects are unused
 // by other threads
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeSwap(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeSwap(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther)
 {
 	const OWord otherStorage(aOther.myStorage.MyVal());
 	aOther.myStorage.MyVal() = myStorage.MyVal();
@@ -362,64 +393,74 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeSwap(ConcurrentSharedPtr<T
 // Concurrency UNSAFE
 // May be used for faster performance when TO and FROM objects are unused
 // by other threads
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeAssign(ConcurrentSharedPtr<T, CSMoveType>& aOther)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeAssign(ConcurrentSharedPtr<T, MoveType, Allocator>& aOther)
 {
 	UnsafeStore(aOther.UnsafeCopy());
 }
 // Concurrency UNSAFE
 // May be used for faster performance when TO and FROM objects are unused
 // by other threads
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeMove(ConcurrentSharedPtr<T, CSMoveType>&& aOther)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeMove(ConcurrentSharedPtr<T, MoveType, Allocator>&& aOther)
 {
 	UnsafeStore(aOther.UnsafeSteal());
 }
 // Concurrency UNSAFE
 // May be used for faster performance when this object is unused by other
 // threads
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeReset()
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeReset()
 {
 	UnsafeStore(OWord());
 }
 // Concurrency UNSAFE
 // May be used for faster performance when this object is unused by other
 // threads
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeClaim(T * const aObject)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeClaim(T * const aObject)
 {
-	UnsafeClaim(aObject, DefaultDeleter<T>());
+	UnsafeClaim(aObject, csp::DefaultDeleter<T>());
 }
 // Concurrency UNSAFE. The Deleter callable has signature void(T* arg)
 // May be used for faster performance when this object is unused by other
 // threads
-template <class T, class CSMoveType>
+template <class T, class MoveType, class Allocator>
 template <class Deleter>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeClaim(T * const aObject, Deleter && aDeleter)
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeClaim(T * const aObject, Deleter && aDeleter)
 {
-	UnsafeStore(CreateControlBlock(aObject, std::forward<Deleter&&>(aDeleter)));
+	const Allocator alloc;
+	UnsafeClaim(aObject, std::forward<Deleter&&>(aDeleter), alloc);
+}
+// Concurrency UNSAFE. The Deleter callable has signature void(T* arg)
+// May be used for faster performance when this object is unused by other
+// threads
+template<class T, class MoveType, class Allocator>
+template<class Deleter>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeClaim(T * const aObject, Deleter && aDeleter, const Allocator & aAllocator)
+{
+	UnsafeStore(CreateControlBlock(aObject, std::forward<Deleter&&>(aDeleter), aAllocator));
 }
 // Concurrency SAFE
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::SafeReset()
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::SafeReset()
 {
 	SafeStore(OWord());
 }
 // Concurrency SAFE
-template<class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::SafeMove(ConcurrentSharedPtr<T, CSMoveType>&& aFrom)
+template<class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::SafeMove(ConcurrentSharedPtr<T, MoveType, Allocator>&& aFrom)
 {
 	SafeStore(aFrom.SafeSteal());
 }
 // Concurrency SAFE
-template<class T, class CSMoveType>
-inline const bool ConcurrentSharedPtr<T, CSMoveType>::CompareAndSwap(const T *& aExpected, ConcurrentSharedPtr<T, CSMoveType>& aDesired)
+template<class T, class MoveType, class Allocator>
+inline const bool ConcurrentSharedPtr<T, MoveType, Allocator>::CompareAndSwap(const T *& aExpected, ConcurrentSharedPtr<T, MoveType, Allocator>& aDesired)
 {
 	const OWord desired(aDesired.SafeCopy());
 	OWord expected(myStorage.Load());
 
-	CSControlBlock<T>* const otherStorage(ToControlBlock(desired));
+	csp::ControlBlock<T, Allocator>* const otherStorage(ToControlBlock(desired));
 
 	const T* const object(ToObject(expected));
 
@@ -438,8 +479,8 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::CompareAndSwap(const T *& 
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline const typename ConcurrentSharedPtr<T, CSMoveType>::size_type ConcurrentSharedPtr<T, CSMoveType>::UseCount() const
+template <class T, class MoveType, class Allocator>
+inline const typename ConcurrentSharedPtr<T, MoveType, Allocator>::size_type ConcurrentSharedPtr<T, MoveType, Allocator>::UseCount() const
 {
 	if (!operator bool()) {
 		return 0;
@@ -450,104 +491,104 @@ inline const typename ConcurrentSharedPtr<T, CSMoveType>::size_type ConcurrentSh
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::operator bool() const
+template <class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::operator bool() const
 {
 	return static_cast<bool>(Object());
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline T * const ConcurrentSharedPtr<T, CSMoveType>::operator->()
+template <class T, class MoveType, class Allocator>
+inline T * const ConcurrentSharedPtr<T, MoveType, Allocator>::operator->()
 {
 	return Object();
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline T & ConcurrentSharedPtr<T, CSMoveType>::operator*()
+template <class T, class MoveType, class Allocator>
+inline T & ConcurrentSharedPtr<T, MoveType, Allocator>::operator*()
 {
 	return *(Object());
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline const T * const ConcurrentSharedPtr<T, CSMoveType>::operator->() const
+template <class T, class MoveType, class Allocator>
+inline const T * const ConcurrentSharedPtr<T, MoveType, Allocator>::operator->() const
 {
 	return Object();
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline const T & ConcurrentSharedPtr<T, CSMoveType>::operator*() const
+template <class T, class MoveType, class Allocator>
+inline const T & ConcurrentSharedPtr<T, MoveType, Allocator>::operator*() const
 {
 	return *(Object());
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
-template <class T, class CSMoveType>
-inline const bool ConcurrentSharedPtr<T, CSMoveType>::operator==(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const
+template <class T, class MoveType, class Allocator>
+inline const bool ConcurrentSharedPtr<T, MoveType, Allocator>::operator==(const ConcurrentSharedPtr<T, MoveType, Allocator>& aOther) const
 {
 	return operator->() == aOther.operator->();
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
-template <class T, class CSMoveType>
-inline const bool ConcurrentSharedPtr<T, CSMoveType>::operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aOther) const
+template <class T, class MoveType, class Allocator>
+inline const bool ConcurrentSharedPtr<T, MoveType, Allocator>::operator!=(const ConcurrentSharedPtr<T, MoveType, Allocator>& aOther) const
 {
 	return !operator==(aOther);
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
-template <class T, class CSMoveType>
-inline const bool operator==(std::nullptr_t /*aNullptr*/, const ConcurrentSharedPtr<T, CSMoveType>& aConcurrentSharedPtr)
+template <class T, class MoveType, class Allocator>
+inline const bool operator==(std::nullptr_t /*aNullptr*/, const ConcurrentSharedPtr<T, MoveType, Allocator>& aConcurrentSharedPtr)
 {
 	return !aConcurrentSharedPtr;
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
-template <class T, class CSMoveType>
-inline const bool operator!=(std::nullptr_t /*aNullptr*/, const ConcurrentSharedPtr<T, CSMoveType>& aConcurrentSharedPtr)
+template <class T, class MoveType, class Allocator>
+inline const bool operator!=(std::nullptr_t /*aNullptr*/, const ConcurrentSharedPtr<T, MoveType, Allocator>& aConcurrentSharedPtr)
 {
 	return aConcurrentSharedPtr.operator bool();
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
-template <class T, class CSMoveType>
-inline const bool operator==(const ConcurrentSharedPtr<T, CSMoveType>& aConcurrentSharedPtr, std::nullptr_t /*aNullptr*/)
+template <class T, class MoveType, class Allocator>
+inline const bool operator==(const ConcurrentSharedPtr<T, MoveType, Allocator>& aConcurrentSharedPtr, std::nullptr_t /*aNullptr*/)
 {
 	return !aConcurrentSharedPtr.operator bool();
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
-template <class T, class CSMoveType>
-inline const bool operator!=(const ConcurrentSharedPtr<T, CSMoveType>& aConcurrentSharedPtr, std::nullptr_t /*aNullptr*/)
+template <class T, class MoveType, class Allocator>
+inline const bool operator!=(const ConcurrentSharedPtr<T, MoveType, Allocator>& aConcurrentSharedPtr, std::nullptr_t /*aNullptr*/)
 {
 	return aConcurrentSharedPtr.operator bool();
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline const T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex) const
+template <class T, class MoveType, class Allocator>
+inline const T & ConcurrentSharedPtr<T, MoveType, Allocator>::operator[](const size_type aIndex) const
 {
 	return (Object())[aIndex];
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
 // otherwise altering the state of this object
-template <class T, class CSMoveType>
-inline T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex)
+template <class T, class MoveType, class Allocator>
+inline T & ConcurrentSharedPtr<T, MoveType, Allocator>::operator[](const size_type aIndex)
 {
 	return (Object())[aIndex];
 }
@@ -556,8 +597,8 @@ inline T & ConcurrentSharedPtr<T, CSMoveType>::operator[](const size_type aIndex
 // safe to fetch. Accessing them is safe so long as no other 
 // thread is reassigning or otherwise altering the state of 
 // this object
-template <class T, class CSMoveType>
-inline const CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ControlBlock() const
+template <class T, class MoveType, class Allocator>
+inline const csp::ControlBlock<T, Allocator>* const ConcurrentSharedPtr<T, MoveType, Allocator>::ControlBlock() const
 {
 	return ToControlBlock(myStorage.MyVal());
 }
@@ -566,8 +607,8 @@ inline const CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::Contro
 // safe to fetch. Accessing them is safe so long as no other 
 // thread is reassigning or otherwise altering the state of 
 // this object
-template <class T, class CSMoveType>
-inline const T * const ConcurrentSharedPtr<T, CSMoveType>::Object() const
+template <class T, class MoveType, class Allocator>
+inline const T * const ConcurrentSharedPtr<T, MoveType, Allocator>::Object() const
 {
 	return ToObject(myStorage.MyVal());
 }
@@ -576,8 +617,8 @@ inline const T * const ConcurrentSharedPtr<T, CSMoveType>::Object() const
 // safe to fetch. Accessing them is safe so long as no other 
 // thread is reassigning or otherwise altering the state of 
 // this object
-template<class T, class CSMoveType>
-inline CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ControlBlock()
+template<class T, class MoveType, class Allocator>
+inline csp::ControlBlock<T, Allocator>* const ConcurrentSharedPtr<T, MoveType, Allocator>::ControlBlock()
 {
 	return ToControlBlock(myStorage.MyVal());
 }
@@ -586,8 +627,8 @@ inline CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ControlBlock
 // safe to fetch. Accessing them is safe so long as no other 
 // thread is reassigning or otherwise altering the state of 
 // this object
-template<class T, class CSMoveType>
-inline T * const ConcurrentSharedPtr<T, CSMoveType>::Object()
+template<class T, class MoveType, class Allocator>
+inline T * const ConcurrentSharedPtr<T, MoveType, Allocator>::Object()
 {
 	return ToObject(myStorage.MyVal());
 }
@@ -596,8 +637,8 @@ inline T * const ConcurrentSharedPtr<T, CSMoveType>::Object()
 // safe to fetch. Accessing them is safe so long as no other 
 // thread is reassigning or otherwise altering the state of 
 // this object
-template<class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::operator T*()
+template<class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::operator T*()
 {
 	return Object();
 }
@@ -606,18 +647,28 @@ inline ConcurrentSharedPtr<T, CSMoveType>::operator T*()
 // safe to fetch. Accessing them is safe so long as no other 
 // thread is reassigning or otherwise altering the state of 
 // this object
-template<class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::operator const T*() const
+template<class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::operator const T*() const
 {
 	return Object();
 }
-template<class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::operator const CSControlBlock<T>*() const
+// Concurrency SAFE
+// These adresses are stored locally in this object and are 
+// safe to fetch. Accessing them is safe so long as no other 
+// thread is reassigning or otherwise altering the state of 
+// this object
+template<class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::operator const csp::ControlBlock<T, Allocator>*() const
 {
 	return ControlBlock();
 }
-template<class T, class CSMoveType>
-inline ConcurrentSharedPtr<T, CSMoveType>::operator CSControlBlock<T>*()
+// Concurrency SAFE
+// These adresses are stored locally in this object and are 
+// safe to fetch. Accessing them is safe so long as no other 
+// thread is reassigning or otherwise altering the state of 
+// this object
+template<class T, class MoveType, class Allocator>
+inline ConcurrentSharedPtr<T, MoveType, Allocator>::operator csp::ControlBlock<T, Allocator>*()
 {
 	return ControlBlock();
 }
@@ -626,30 +677,30 @@ inline ConcurrentSharedPtr<T, CSMoveType>::operator CSControlBlock<T>*()
 // -------------------------Internals--------------------------------------------------
 
 // ------------------------------------------------------------------------------------
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::SafeStore(const OWord& aFrom)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::SafeStore(const OWord& aFrom)
 {
 	SafeExchange(aFrom, true);
 }
-template<class T, class CSMoveType>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::UnsafeSteal()
+template<class T, class MoveType, class Allocator>
+inline const OWord ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeSteal()
 {
 	const OWord toSteal(myStorage.MyVal());
 	myStorage.MyVal() = OWord();
 
 	return toSteal;
 }
-template<class T, class CSMoveType>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeSteal()
+template<class T, class MoveType, class Allocator>
+inline const OWord ConcurrentSharedPtr<T, MoveType, Allocator>::SafeSteal()
 {
 	return SafeExchange(OWord(), false);
 }
-template <class T, class CSMoveType>
-inline const bool ConcurrentSharedPtr<T, CSMoveType>::IncrementAndTrySwap(OWord & aExpected, const OWord & aDesired)
+template <class T, class MoveType, class Allocator>
+inline const bool ConcurrentSharedPtr<T, MoveType, Allocator>::IncrementAndTrySwap(OWord & aExpected, const OWord & aDesired)
 {
 	const uint16_t initialReassignIndex(aExpected.myWords[STORAGE_WORD_REASSIGNINDEX]);
 
-	CSControlBlock<T>* const controlBlock(ToControlBlock(aExpected));
+	csp::ControlBlock<T, Allocator>* const controlBlock(ToControlBlock(aExpected));
 
 	OWord desired(aDesired);
 	desired.myWords[STORAGE_WORD_REASSIGNINDEX] = initialReassignIndex + 1;
@@ -676,12 +727,12 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::IncrementAndTrySwap(OWord 
 
 	return returnValue;
 }
-template<class T, class CSMoveType>
-inline const bool ConcurrentSharedPtr<T, CSMoveType>::CASInternal(OWord & aExpected, const OWord & aDesired, const bool aDecrementPrevious)
+template<class T, class MoveType, class Allocator>
+inline const bool ConcurrentSharedPtr<T, MoveType, Allocator>::CASInternal(OWord & aExpected, const OWord & aDesired, const bool aDecrementPrevious)
 {
 	bool success(false);
 
-	CSControlBlock<T>* controlBlock(ToControlBlock(aExpected));
+	csp::ControlBlock<T, Allocator>* controlBlock(ToControlBlock(aExpected));
 
 	OWord desired(aDesired);
 	desired.myWords[STORAGE_WORD_REASSIGNINDEX] = aExpected.myWords[STORAGE_WORD_REASSIGNINDEX] + 1;
@@ -709,32 +760,32 @@ inline const bool ConcurrentSharedPtr<T, CSMoveType>::CASInternal(OWord & aExpec
 	}
 	return success;
 }
-template<class T, class CSMoveType>
-constexpr inline CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToControlBlock(const OWord & aFrom)
+template<class T, class MoveType, class Allocator>
+constexpr inline csp::ControlBlock<T, Allocator>* const ConcurrentSharedPtr<T, MoveType, Allocator>::ToControlBlock(const OWord & aFrom)
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
-	return reinterpret_cast<CSControlBlock<T>* const>(aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & ptrMask);
+	return reinterpret_cast<csp::ControlBlock<T, Allocator>* const>(aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & ptrMask);
 }
-template<class T, class CSMoveType>
-constexpr inline T* const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom)
+template<class T, class MoveType, class Allocator>
+constexpr inline T* const ConcurrentSharedPtr<T, MoveType, Allocator>::ToObject(const OWord & aFrom)
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
 	return reinterpret_cast<T* const>(aFrom.myQWords[STORAGE_QWORD_OBJECTPTR] & ptrMask);
 }
-template<class T, class CSMoveType>
-constexpr inline const CSControlBlock<T>* const ConcurrentSharedPtr<T, CSMoveType>::ToControlBlock(const OWord & aFrom) const
+template<class T, class MoveType, class Allocator>
+constexpr inline const csp::ControlBlock<T, Allocator>* const ConcurrentSharedPtr<T, MoveType, Allocator>::ToControlBlock(const OWord & aFrom) const
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
-	return reinterpret_cast<const CSControlBlock<T>* const>(aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & ptrMask);
+	return reinterpret_cast<const csp::ControlBlock<T, Allocator>* const>(aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & ptrMask);
 }
-template<class T, class CSMoveType>
-constexpr inline const T * const ConcurrentSharedPtr<T, CSMoveType>::ToObject(const OWord & aFrom) const
+template<class T, class MoveType, class Allocator>
+constexpr inline const T * const ConcurrentSharedPtr<T, MoveType, Allocator>::ToObject(const OWord & aFrom) const
 {
 	const uint64_t ptrMask(std::numeric_limits<uint64_t>::max() >> 16);
 	return reinterpret_cast<const T* const>(aFrom.myQWords[STORAGE_QWORD_OBJECTPTR] & ptrMask);
 }
-template <class T, class CSMoveType>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeCopy()
+template <class T, class MoveType, class Allocator>
+inline const OWord ConcurrentSharedPtr<T, MoveType, Allocator>::SafeCopy()
 {
 	OWord initial(myStorage.FetchAddToWord(1, STORAGE_WORD_COPYREQUEST));
 	initial.myWords[STORAGE_WORD_COPYREQUEST] += 1;
@@ -746,16 +797,16 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeCopy()
 
 	return initial;
 }
-template <class T, class CSMoveType>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::UnsafeCopy()
+template <class T, class MoveType, class Allocator>
+inline const OWord ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeCopy()
 {
 	if (operator bool()) {
 		++(*ControlBlock());
 	}
 	return myStorage.MyVal();
 }
-template <class T, class CSMoveType>
-inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeStore(const OWord & aFrom)
+template <class T, class MoveType, class Allocator>
+inline void ConcurrentSharedPtr<T, MoveType, Allocator>::UnsafeStore(const OWord & aFrom)
 {
 	if (operator bool()) {
 		--(*ControlBlock());
@@ -763,26 +814,31 @@ inline void ConcurrentSharedPtr<T, CSMoveType>::UnsafeStore(const OWord & aFrom)
 	myStorage.MyVal().myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] = aFrom.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR];
 	myStorage.MyVal().myQWords[STORAGE_QWORD_OBJECTPTR] = aFrom.myQWords[STORAGE_QWORD_OBJECTPTR];
 }
-template<class T, class CSMoveType>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::SafeExchange(const OWord & aTo, const bool aDecrementPrevious)
+template<class T, class MoveType, class Allocator>
+inline const OWord ConcurrentSharedPtr<T, MoveType, Allocator>::SafeExchange(const OWord & aTo, const bool aDecrementPrevious)
 {
 	OWord expected(myStorage.MyVal());
 	while (!CASInternal(expected, aTo, aDecrementPrevious));
 	return expected;
 }
-template <class T, class CSMoveType>
+template <class T, class MoveType, class Allocator>
 template<class Deleter>
-inline const OWord ConcurrentSharedPtr<T, CSMoveType>::CreateControlBlock(T* const aObject, Deleter&& aDeleter)
+inline const OWord ConcurrentSharedPtr<T, MoveType, Allocator>::CreateControlBlock(T* const aObject, Deleter&& aDeleter, const Allocator& aAllocator)
 {
-	CSControlBlock<T>* controlBlock(nullptr);
+	csp::ControlBlock<T, Allocator>* controlBlock(nullptr);
+
+	const std::size_t blockSize(sizeof(csp::ControlBlock<T, Allocator>));
+
 	void* block(nullptr);
 
+	Allocator allocator(aAllocator);
+
 	try {
-		block = ::operator new(sizeof(CSControlBlock<T>));
-		controlBlock = new (block) CSControlBlock<T>(aObject, std::forward<Deleter&&>(aDeleter));
+		block = allocator.allocate(blockSize);
+		controlBlock = new (block) csp::ControlBlock<T, Allocator>(blockSize, aObject, std::forward<Deleter&&>(aDeleter), allocator);
 	}
 	catch (...) {
-		::operator delete(block);
+		allocator.deallocate(static_cast<uint8_t*>(block), blockSize);
 		aDeleter(aObject);
 		throw;
 	}
@@ -795,148 +851,168 @@ inline const OWord ConcurrentSharedPtr<T, CSMoveType>::CreateControlBlock(T* con
 
 	return returnValue;
 }
-template <class T>
-class CSControlBlock
-{
-public:
-	typedef typename ConcurrentSharedPtr<T>::size_type size_type;
+namespace csp {
+	template <class T, class Allocator>
+	class csp::ControlBlock
+	{
+	public:
+		typedef typename ConcurrentSharedPtr<T>::size_type size_type;
 
-	CSControlBlock(T* const aObject);
-	template <class Deleter>
-	CSControlBlock(T* const aObject, Deleter&& aDeleter);
+		ControlBlock(const std::size_t aBlockSize, T* const aObject, Allocator& aAllocator);
+		template <class Deleter>
+		ControlBlock(const std::size_t aBlockSize, T* const aObject, Deleter&& aDeleter, Allocator& aAllocator);
 
-	T* const Object();
-	const T* const Object() const;
+		T* const Object();
+		const T* const Object() const;
 
-	const size_type RefCount() const;
+		const size_type RefCount() const;
 
-	const size_type operator--();
-	const size_type operator++();
-	const size_type operator-=(const size_type aDecrement);
-	const size_type operator+=(const size_type aIncrement);
+		const size_type operator--();
+		const size_type operator++();
+		const size_type operator-=(const size_type aDecrement);
+		const size_type operator+=(const size_type aIncrement);
 
-private:
-	friend class ConcurrentSharedPtr<T>;
+	private:
+		friend class ConcurrentSharedPtr<T>;
 
-	void Destroy();
+		void Destroy();
 
-	T* const myPtr;
-	std::atomic<size_type> myRefCount;
-	std::function<void(T*)> myDeleter;
-};
-template<class T>
-inline CSControlBlock<T>::CSControlBlock(T* const aObject)
-	: myPtr(aObject)
-	, myRefCount(1)
-	, myDeleter([](T* aObject) { aObject->~T(); })
-{
-}
-template <class T>
-template<class Deleter>
-inline CSControlBlock<T>::CSControlBlock(T* const aObject, Deleter&& aDeleter)
-	: myPtr(aObject)
-	, myRefCount(1)
-	, myDeleter(std::forward<Deleter&&>(aDeleter))
-{
-}
-template <class T>
-inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator--()
-{
-	const size_type refCount(--myRefCount);
-	if (!refCount) {
-		Destroy();
+		std::atomic<size_type> myRefCount;
+		std::function<void(T*)> myDeleter;
+		T* const myPtr;
+		const std::size_t myBlockSize;
+		Allocator myAllocator;
+	};
+	template<class T, class Allocator>
+	inline ControlBlock<T, Allocator>::ControlBlock(const std::size_t aBlockSize, T* const aObject, Allocator& aAllocator)
+		: myRefCount(1)
+		, myDeleter([](T* aObject) { aObject->~T(); })
+		, myPtr(aObject)
+		, myBlockSize(aBlockSize)
+		, myAllocator(aAllocator)
+	{
 	}
-	return refCount;
-}
-template <class T>
-inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator++()
-{
-	return ++myRefCount;
-}
-template <class T>
-inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator-=(const size_type aDecrement)
-{
-	const size_type refCount(myRefCount -= aDecrement);
-	if (!refCount) {
-		Destroy();
+	template <class T, class Allocator>
+	template<class Deleter>
+	inline ControlBlock<T, Allocator>::ControlBlock(const std::size_t aBlockSize, T* const aObject, Deleter&& aDeleter, Allocator& aAllocator)
+		: myRefCount(1)
+		, myDeleter(std::forward<Deleter&&>(aDeleter))
+		, myPtr(aObject)
+		, myBlockSize(aBlockSize)
+		, myAllocator(aAllocator)
+	{
 	}
-	return refCount;
+	template <class T, class Allocator>
+	inline const typename ControlBlock<T, Allocator>::size_type ControlBlock<T, Allocator>::operator--()
+	{
+		const size_type refCount(myRefCount.fetch_sub(1, std::memory_order_acq_rel) - 1);
+		if (!refCount) {
+			Destroy();
+		}
+		return refCount;
+	}
+	template <class T, class Allocator>
+	inline const typename ControlBlock<T, Allocator>::size_type ControlBlock<T, Allocator>::operator++()
+	{
+		return myRefCount.fetch_add(1, std::memory_order_acq_rel) + 1;
+	}
+	template <class T, class Allocator>
+	inline const typename ControlBlock<T, Allocator>::size_type ControlBlock<T, Allocator>::operator-=(const size_type aDecrement)
+	{
+		const size_type refCount(myRefCount.fetch_sub(aDecrement, std::memory_order_acq_rel) - aDecrement);
+		if (!refCount) {
+			Destroy();
+		}
+		return refCount;
+	}
+	template <class T, class Allocator>
+	inline const typename ControlBlock<T, Allocator>::size_type ControlBlock<T, Allocator>::operator+=(const size_type aIncrement)
+	{
+		return myRefCount.fetch_add(aIncrement, std::memory_order_acq_rel) + aIncrement;
+	}
+	template <class T, class Allocator>
+	inline T* const ControlBlock<T, Allocator>::Object()
+	{
+		return myPtr;
+	}
+	template<class T, class Allocator>
+	inline const T * const ControlBlock<T, Allocator>::Object() const
+	{
+		return myPtr;
+	}
+	template <class T, class Allocator>
+	inline const typename ControlBlock<T, Allocator>::size_type ControlBlock<T, Allocator>::RefCount() const
+	{
+		return myRefCount.load(std::memory_order_acquire);
+	}
+	template <class T, class Allocator>
+	inline void ControlBlock<T, Allocator>::Destroy()
+	{
+		myDeleter(Object());
+		(*this).~ControlBlock<T, Allocator>();
+		myAllocator.deallocate(reinterpret_cast<uint8_t*>(this), myBlockSize);
+	}
+	template <class T>
+	class DefaultDeleter
+	{
+	public:
+		void operator()(T* const aObject);
+	};
+	template<class T>
+	inline void DefaultDeleter<T>::operator()(T * const aObject)
+	{
+		delete aObject;
+	}
 }
-template <class T>
-inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::operator+=(const size_type aIncrement)
-{
-	return myRefCount += aIncrement;
-}
-template <class T>
-inline T* const CSControlBlock<T>::Object()
-{
-	return myPtr;
-}
-template<class T>
-inline const T * const CSControlBlock<T>::Object() const
-{
-	return myPtr;
-}
-template <class T>
-inline const typename CSControlBlock<T>::size_type CSControlBlock<T>::RefCount() const
-{
-	return myRefCount.load(std::memory_order_acquire);
-}
-template <class T>
-inline void CSControlBlock<T>::Destroy()
-{
-	myDeleter(Object());
-	(*this).~CSControlBlock<T>();
-	::operator delete (reinterpret_cast<void*>(this));
-}
-template <class T>
-class DefaultDeleter
-{
-public:
-	void operator()(T* aObject);
-};
-template<class T>
-inline void DefaultDeleter<T>::operator()(T * aObject)
-{
-	delete aObject;
-}
-// Constructs a ConcurrentSharedPtr object using the default MoveType
+// Constructs a ConcurrentSharedPtr object using the default MoveType and allocator
 template<class T, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveDefault> MakeConcurrentShared(Args&& ...aArgs)
+inline ConcurrentSharedPtr<T, csp::MoveDefault> MakeConcurrentShared(Args&& ...aArgs)
 {
-	return MakeConcurrentShared<T, CSMoveDefault>(std::forward<Args&&>(aArgs)...);
-};
-// Constructs a ConcurrentSharedPtr object using explicit MoveType
-template<class T, class CSMoveType, class ...Args>
-inline ConcurrentSharedPtr<T, CSMoveType> MakeConcurrentShared(Args&& ...aArgs)
+	csp::DefaultAllocator alloc;
+	return MakeConcurrentShared<T, csp::MoveDefault>(alloc, std::forward<Args&&>(aArgs)...);
+}
+// Constructs a ConcurrentSharedPtr object using explicit MoveType and default allocator
+template<class T, class MoveType, class ...Args>
+inline ConcurrentSharedPtr<T, MoveType> MakeConcurrentShared(Args&& ...aArgs)
 {
-	ConcurrentSharedPtr<T, CSMoveType> returnValue;
+	csp::DefaultAllocator alloc;
+	return MakeConcurrentShared<T, MoveType>(alloc, std::forward<Args&&>(aArgs)...);
+}
+// Constructs a ConcurrentSharedPtr object using explicit MoveType and explicit allocator
+template<class T, class MoveType, class Allocator, class ...Args>
+inline ConcurrentSharedPtr<T, MoveType, Allocator> MakeConcurrentShared(Allocator& aAllocator, Args&& ...aArgs)
+{
+	ConcurrentSharedPtr<T, MoveType, Allocator> returnValue;
 
-	const size_t controlBlockSize(sizeof(CSControlBlock<T>));
-	const size_t objectSize(sizeof(T));
-	const size_t alignmentPadding(controlBlockSize % 8);
+	const std::size_t controlBlockSize(sizeof(csp::ControlBlock<T, Allocator>));
+	const std::size_t objectSize(sizeof(T));
+	const std::size_t alignment(alignof(T));
+	const std::size_t blockSize(controlBlockSize + objectSize + alignment);
 
-	void* const block(::operator new(controlBlockSize + objectSize + alignmentPadding));
+	uint8_t* const block(aAllocator.allocate(blockSize));
 
-	const size_t controlBlockOffset(0);
-	const size_t objectOffset(controlBlockOffset + controlBlockSize + alignmentPadding);
+	const std::size_t controlBlockOffset(0);
+	const std::size_t controlBlockEndAddr(reinterpret_cast<std::size_t>(block + controlBlockSize));
+	const std::size_t alignmentRemainder(controlBlockEndAddr % alignment);
+	const std::size_t alignmentOffset(alignment - (alignmentRemainder ? alignmentRemainder : alignment));
+	const std::size_t objectOffset(controlBlockOffset + controlBlockSize + alignmentOffset);
 
-	CSControlBlock<T> * controlBlock(nullptr);
+	csp::ControlBlock<T, Allocator> * controlBlock(nullptr);
 	T* object(nullptr);
 	try {
 		object = new (reinterpret_cast<uint8_t*>(block) + objectOffset) T(std::forward<Args&&>(aArgs)...);
-		controlBlock = new (reinterpret_cast<uint8_t*>(block) + controlBlockOffset) CSControlBlock<T>(object);
+		controlBlock = new (reinterpret_cast<uint8_t*>(block) + controlBlockOffset) csp::ControlBlock<T, Allocator>(blockSize, object, aAllocator);
 	}
 	catch (...) {
 		if (object) {
 			(*object).~T();
 		}
-		::operator delete (block);
+		aAllocator.deallocate(block, blockSize);
 		throw;
 	}
 
-	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_CONTROLBLOCKPTR] = reinterpret_cast<uint64_t>(controlBlock);
-	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, CSMoveType>::STORAGE_QWORD_OBJECTPTR] = reinterpret_cast<uint64_t>(object);
+	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, MoveType, Allocator>::STORAGE_QWORD_CONTROLBLOCKPTR] = reinterpret_cast<uint64_t>(controlBlock);
+	returnValue.myStorage.MyVal().myQWords[ConcurrentSharedPtr<T, MoveType, Allocator>::STORAGE_QWORD_OBJECTPTR] = reinterpret_cast<uint64_t>(object);
 
 	return returnValue;
 };

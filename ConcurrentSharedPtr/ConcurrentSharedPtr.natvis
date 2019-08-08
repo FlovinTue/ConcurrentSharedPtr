@@ -16,7 +16,7 @@
         nullptr
       </Item>
       <Item Name="[RefCount]" Condition="((myStorage.myVal.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myStorage.myVal.myWords[STORAGE_WORD_COPYREQUEST] * (PtrMask + 1))) != 0)">
-        *((uint64_t*)(myStorage.myVal.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myStorage.myVal.myWords[STORAGE_WORD_COPYREQUEST] * (PtrMask + 1))) + 1)
+        *((uint64_t*)(myStorage.myVal.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myStorage.myVal.myWords[STORAGE_WORD_COPYREQUEST] * (PtrMask + 1))))
       </Item>
       <Item Name="[RefCount]" Condition="((myStorage.myVal.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myStorage.myVal.myWords[STORAGE_WORD_COPYREQUEST] * (PtrMask + 1))) == 0)">
         0

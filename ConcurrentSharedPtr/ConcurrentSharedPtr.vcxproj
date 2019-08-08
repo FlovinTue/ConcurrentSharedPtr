@@ -103,9 +103,7 @@
     <ClCompile Include="Timer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="ConcurrentSharedPtr.natvis">
-      <SubType>Designer</SubType>
-    </Natvis>
+    <Natvis Include="ConcurrentSharedPtr.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
