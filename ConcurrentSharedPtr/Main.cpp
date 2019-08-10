@@ -1,6 +1,6 @@
 
 #include "pch.h"
-#include "ConcurrentSharedPtr.h"
+#include "concurrent_shared_ptr.h"
 #include <iostream>
 
 //#define CSP_MUTEX_COMPARE
@@ -10,7 +10,7 @@
 #include "Timer.h"
 #include <functional>
 #include <assert.h>
-#include <vld.h>
+//#include <vld.h>
 
 int main()
 {
@@ -21,8 +21,8 @@ int main()
 		const bool
 			doassign(true),
 			doreassign(true),
-			doclaim(true),
-			doCAStest(true),
+			doclaim(false),
+			doCAStest(false),
 			doreferencetest(false);
 	
 		uint32_t arraySweeps(10000);
@@ -61,63 +61,63 @@ int main()
 			<< numThreads
 			<< std::endl;
 	
-		ConcurrentSharedPtr<int> one = MakeConcurrentShared<int>(1);
-		ConcurrentSharedPtr<int, csp::MoveSafe> two = MakeConcurrentShared<int, csp::MoveSafe>(2);
-		ConcurrentSharedPtr<int> three = one;
-		ConcurrentSharedPtr<int> four = std::move(three);
-		ConcurrentSharedPtr<int, csp::MoveSafe> five = std::move(two);
-		ConcurrentSharedPtr<int, csp::MoveSafe> six;
+		concurrent_shared_ptr<int> one = make_concurrent_shared<int>(1);
+		concurrent_shared_ptr<int, csp::move_safe> two = make_concurrent_shared<int, csp::move_safe>(2);
+		concurrent_shared_ptr<int> three = one;
+		concurrent_shared_ptr<int> four = std::move(three);
+		concurrent_shared_ptr<int, csp::move_safe> five = std::move(two);
+		concurrent_shared_ptr<int, csp::move_safe> six;
 		six = std::move(five);
 		
-		ConcurrentSharedPtr<int> seven;
+		concurrent_shared_ptr<int> seven;
 		seven = std::move(four);
 		
-		ConcurrentSharedPtr<int> eight;
+		concurrent_shared_ptr<int> eight;
 		eight = seven;
 		
-		ConcurrentSharedPtr<int> nine(new int);
+		concurrent_shared_ptr<int> nine(new int);
 		
 		int* integer = new int;
-		ConcurrentSharedPtr<int> ten(integer, [](int* obj) { delete obj; });
+		concurrent_shared_ptr<int> ten(integer, [](int* obj) { delete obj; });
 		
 		int* integer2 = new int;
-		ConcurrentSharedPtr<int> eleven;
-		eleven.SafeClaim(integer2);
+		concurrent_shared_ptr<int> eleven;
+		eleven.claim(integer2);
 		
 		int* integer3 = new int;
 		
-		ConcurrentSharedPtr<int> twelve;
-		twelve.UnsafeClaim(integer3);
+		concurrent_shared_ptr<int> twelve;
+		twelve.unsafe_claim(integer3);
 		
 		int* integer4 = new int;
-		ConcurrentSharedPtr<int> thirteen;
-		thirteen.SafeClaim(integer4, [](int* aInt) { delete aInt; });
+		concurrent_shared_ptr<int> thirteen;
+		thirteen.claim(integer4, [](int* aInt) { delete aInt; });
 		
 		int* integer5 = new int;
-		ConcurrentSharedPtr<int> fourteen;
-		fourteen.UnsafeClaim(integer5, [](int* aInt) { delete aInt; });
+		concurrent_shared_ptr<int> fourteen;
+		fourteen.unsafe_claim(integer5, [](int* aInt) { delete aInt; });
 		
-		ConcurrentSharedPtr<int> fifteen;
-		fifteen.SafeMove(std::move(fourteen));
+		concurrent_shared_ptr<int> fifteen;
+		fifteen.move(std::move(fourteen));
 		
-		ConcurrentSharedPtr<int> sixteen;
-		sixteen.UnsafeAssign(fifteen);
-		sixteen.UnsafeMove(std::move(fourteen));
-		sixteen.UnsafeReset();
-		sixteen.UnsafeSwap(std::move(twelve));
-		sixteen.SafeMove(std::move(ten));
+		concurrent_shared_ptr<int> sixteen;
+		sixteen.unsafe_assign(fifteen);
+		sixteen.unsafe_move(std::move(fourteen));
+		sixteen.unsafe_reset();
+		sixteen.unsafe_swap(std::move(twelve));
+		sixteen.move(std::move(ten));
 		
-		sixteen.SafeReset();
+		sixteen.reset();
 		
-		ConcurrentSharedPtr<int> seventeen;
-		seventeen.PrivateAssign(twelve);
-		seventeen.PrivateMove(std::move(nine));
+		concurrent_shared_ptr<int> seventeen;
+		seventeen.private_assign(twelve);
+		seventeen.private_move(std::move(nine));
 		
-		ConcurrentSharedPtr<int>::size_type usecount = seventeen.UseCount();
-
+		concurrent_shared_ptr<int>::size_type usecount = seventeen.use_count();
+		
 		std::allocator<uint8_t> alloc;
-		ConcurrentSharedPtr<int, csp::MoveDefault, std::allocator<uint8_t>> allocTest(MakeConcurrentShared<int, csp::MoveDefault, std::allocator<uint8_t>>(alloc, 1));
+		concurrent_shared_ptr<int, csp::move_default, std::allocator<uint8_t>> allocTest(make_concurrent_shared<int, csp::move_default, std::allocator<uint8_t>>(alloc, 1));
 		usecount;
 
-	return 0;
+		return 0;
 }

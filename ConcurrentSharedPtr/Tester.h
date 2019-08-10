@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ThreadPool.h"
-#include "ConcurrentSharedPtr.h"
+#include "concurrent_shared_ptr.h"
 #include <random>
 #include <string>
 #include "Timer.h"
@@ -11,7 +11,7 @@ template <class T>
 struct ReferenceComparison
 {
 	T* myPtr;
-	uint8_t trash[sizeof(ConcurrentSharedPtr<int>) - 8];
+	uint8_t trash[sizeof(concurrent_shared_ptr<int>) - 8];
 };
 
 template <class T>
@@ -81,7 +81,7 @@ public:
 #ifdef CSP_MUTEX_COMPARE
 	MutextedWrapper<T> myTestArray[ArraySize];
 #else
-	ConcurrentSharedPtr<T> myTestArray[ArraySize];
+	concurrent_shared_ptr<T> myTestArray[ArraySize];
 	ReferenceComparison<T> myReferenceComparison[ArraySize];
 #endif
 	std::atomic_flag myWorkBlock;
@@ -109,7 +109,7 @@ inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArg
 			wrapper.ptr = std::make_shared<T>(std::forward<InitArgs&&>(aArgs)...);
 			myTestArray[i] = wrapper;
 #else
-			myTestArray[i] = MakeConcurrentShared<T>(std::forward<InitArgs&&>(aArgs)...);
+			myTestArray[i] = make_concurrent_shared<T>(std::forward<InitArgs&&>(aArgs)...);
 			myReferenceComparison[i].myPtr = new T(std::forward<InitArgs&&>(aArgs)...);
 #endif
 		}
@@ -178,7 +178,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkAssign(uint32_t aArrayPasses)
 			wrapper.ptr = std::make_shared<T>();
 			myTestArray[i] = wrapper;
 #else
-			myTestArray[i] = MakeConcurrentShared<T>();
+			myTestArray[i] = make_concurrent_shared<T>();
 #endif
 		}
 	}
@@ -209,7 +209,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkClaim(uint32_t aArrayPasses)
 			wrapper.ptr = std::shared_ptr<T>(new T);
 			myTestArray[i] = wrapper;
 #else
-			myTestArray[i].SafeClaim(new T());
+			myTestArray[i].claim(new T());
 #endif
 		}
 	}
@@ -267,9 +267,9 @@ inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 #ifndef CSP_MUTEX_COMPARE
 	uint32_t count(0);
 	for (uint32_t i = 0; i < ArraySize; ++i) {
-		const csp::ControlBlock<T, csp::DefaultAllocator>* const controlBlock(myTestArray[i].ControlBlock());
-		const T* const directObject(myTestArray[i].Object());
-		const T* const sharedObject(controlBlock->Object());
+		const csp::control_block<T, csp::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
+		const T* const directObject(myTestArray[i].get());
+		const T* const sharedObject(controlBlock->get());
 
 		if (directObject != sharedObject) {
 			++count;
