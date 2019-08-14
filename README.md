@@ -1,19 +1,15 @@
-# atomic_shared_ptr (previously ConcurrentSharedPtr)
+# atomic_shared_ptr 
+(previously ConcurrentSharedPtr)
 
-A thread-safe shared pointer object that allows dynamic garbage collection of resources with ambiguous life times. Lock-free.
+My take on an atomic shared pointer. 
 
-Includes needed:
+- It uses an interface resembling that of a std::atomic type
+- Does not (currently) support the use of differing memory orderings
+- Does not (currently) use std::shared_ptr, but a structure of similar design
 
-ConcurrentSharedPtr.h
+Instructions:
 
-AtomicOWord.h
+Include atomic_shared_ptr.h, atomic_oword.h and go.
+Optionally add atomic_shared_ptr.natvis to your project for debug info viewing in Visual Studio
 
-
--------------------------------------------------------------------------------------------------------------------------------
-
-
-To clarify a bit what is and what is not concurrency safe: Resetting, Assigning from or to, claiming an object to, or moving to a pointer object is concurrency safe, and will properly increment & decrement the relevant counters. Optionally moving from a pointer object can be made safe as well via template argument, or redefining the default value in the ConcurrentSharedPtr.h file. 
-
-The accessor methods / operators (->, * , [] etc). are NOT concurrency safe for performance reasons. 
-
-Additionally there are lots of fast unsafe versions of methods, for when an object is known to be thread-private.
+There are four different versions of compare_exchange_strong, two of which take versioned_raw_ptr as expected value. These are non-reference counted representations of shared_ptr/atomic_shared_ptr. It is recommended to use these with compare_exchange, as the shared_ptr variants may incur extra costs upon failiure.
