@@ -5,8 +5,8 @@
     <ClInclude Include="Tester.h" />
     <ClInclude Include="ThreadPool.h" />
     <ClInclude Include="Timer.h" />
-    <ClInclude Include="concurrent_shared_ptr.h" />
     <ClInclude Include="atomic_oword.h" />
+    <ClInclude Include="atomic_shared_ptr.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ThreadPool.cpp" />
@@ -15,6 +15,6 @@
     <ClCompile Include="Timer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="concurrent_shared_ptr.natvis" />
+    <Natvis Include="atomic_shared_ptr.natvis" />
   </ItemGroup>
 </Project>
