@@ -1,4 +1,4 @@
-# ConcurrentSharedPtr
+# atomic_shared_ptr (previously ConcurrentSharedPtr)
 
 A thread-safe shared pointer object that allows dynamic garbage collection of resources with ambiguous life times. Lock-free.
 
