@@ -291,7 +291,7 @@ inline void atomic_shared_ptr<T, Allocator>::store_internal(const oword& from)
 template <class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::increment_and_try_swap(oword & expected, const oword & desired)
 {
-	const uint16_t initialVersion(expected.myWords[STORAGE_WORD_VERSION]);
+	const uint64_t initialVersionedPtr(expected.myQWords[STORAGE_QWORD_OBJECTPTR]);
 
 	control_block<T, Allocator>* const controlBlock(to_control_block(expected));
 
@@ -312,16 +312,14 @@ inline const bool atomic_shared_ptr<T, Allocator>::increment_and_try_swap(oword 
 			return true;
 		}
 
-	} while (
-		expected.myWords[STORAGE_WORD_COPYREQUEST] &&
-		expected.myWords[STORAGE_WORD_VERSION] == initialVersion);
+	} while (expected.myQWords[STORAGE_QWORD_OBJECTPTR] == initialVersionedPtr);
 
 	return false;
 }
 template<class T, class Allocator>
 inline void atomic_shared_ptr<T, Allocator>::try_increment(oword & expected)
 {
-	const uint16_t initialVersion(expected.myWords[STORAGE_WORD_VERSION]);
+	const uint64_t initialVersionedPtr(expected.myQWords[STORAGE_QWORD_OBJECTPTR]);
 
 	control_block<T, Allocator>* const controlBlock(to_control_block(expected));
 
@@ -337,13 +335,14 @@ inline void atomic_shared_ptr<T, Allocator>::try_increment(oword & expected)
 
 		(*controlBlock) += copyRequests;
 
-		if (!ptr_base<atomic_oword, T, Allocator>::myStorage.compare_exchange_strong(expected, desired)) {
-			(*controlBlock) -= copyRequests;
+		if (ptr_base<atomic_oword, T, Allocator>::myStorage.compare_exchange_strong(expected, desired)) {
+			return;
 		}
+		(*controlBlock) -= copyRequests;
 
 	} while (
 		expected.myWords[STORAGE_WORD_COPYREQUEST] &&
-		expected.myWords[STORAGE_WORD_VERSION] == initialVersion);
+		expected.myQWords[STORAGE_QWORD_OBJECTPTR] == initialVersionedPtr);
 }
 template<class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected, const oword & desired, const bool decrementPrevious, const bool captureOnFailiure)
@@ -832,11 +831,11 @@ public:
 
 	// The amount of memory requested from the allocator when calling
 	// make_shared
-	static constexpr std::size_t alloc_size_make_shared = sizeof(control_block<T, Allocator>) + alignof(T) + sizeof(T);
+	static constexpr std::size_t Alloc_Size_Make_Shared = sizeof(control_block<T, Allocator>) + alignof(T) + sizeof(T);
 
 	// The amount of memory requested from the allocator when taking 
 	// ownership of an object
-	static constexpr std::size_t alloc_size_claim = sizeof(control_block<T, Allocator>);
+	static constexpr std::size_t Alloc_Size_Claim = sizeof(control_block<T, Allocator>);
 
 	inline shared_ptr(const shared_ptr<T, Allocator>& other);
 	inline shared_ptr(shared_ptr<T, Allocator>&& other);
