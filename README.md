@@ -4,6 +4,7 @@
 My take on an atomic shared pointer. 
 
 - It uses an interface resembling that of a std::atomic type
+- Uses internal versioning to protect against ABA problems
 - Does not (currently) support the use of differing memory orderings
 - Does not (currently) use std::shared_ptr, but a structure of similar design
 
