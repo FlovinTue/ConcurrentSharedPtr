@@ -368,15 +368,15 @@ inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected
 
 		controlBlock = to_control_block(expected_);
 
-		if (expected.myQWords[STORAGE_QWORD_OBJECTPTR] == expected_.myQWords[STORAGE_QWORD_OBJECTPTR]) {
+		const uint64_t oldObjectBlock(expected.myQWords[STORAGE_QWORD_OBJECTPTR]);
+		expected = expected_;
 
+		if (expected_.myQWords[STORAGE_QWORD_OBJECTPTR] == oldObjectBlock) {
 			success = increment_and_try_swap(expected, desired_);
 		}
 		else{
 			try_increment(expected_);
 		}
-
-		expected = expected_;
 
 		if (controlBlock) {
 			(*controlBlock) -= static_cast<size_type>(!(captureOnFailiure & !success)) + static_cast<size_type>(decrementPrevious & success);
