@@ -46,7 +46,7 @@ class versioned_raw_ptr;
 template <class T>
 struct disable_deduction;
 
-static const uint64_t PtrMask = std::numeric_limits<uint64_t>::max() >> 16;
+static const uint64_t Ptr_Mask = std::numeric_limits<uint64_t>::max() >> 16;
 
 template <class T, class ...Args>
 inline shared_ptr<T> make_shared(Args&&...);
@@ -72,11 +72,6 @@ public:
 
 	inline ~atomic_shared_ptr();
 
-	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
-	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
-
-	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
-	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
 
 	inline atomic_shared_ptr<T, Allocator>& operator=(const shared_ptr<T, Allocator>& from);
 	inline atomic_shared_ptr<T, Allocator>& operator=(shared_ptr<T, Allocator>&& from);
@@ -97,8 +92,15 @@ public:
 	inline void unsafe_store(const shared_ptr<T, Allocator>& from);
 	inline void unsafe_store(shared_ptr<T, Allocator>&& from);
 
-
+	inline const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr();
 private:
+	// found error within. Do not use 
+	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
+	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
+
+	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
+	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
+
 	inline const oword copy_internal();
 	inline const oword unsafe_copy_internal();
 	inline const oword unsafe_exchange_internal(const oword& with);
@@ -277,6 +279,12 @@ inline void atomic_shared_ptr<T, Allocator>::unsafe_store(shared_ptr<T, Allocato
 	from.my_val() = oword();
 }
 
+template<class T, class Allocator>
+inline const versioned_raw_ptr<T, Allocator> atomic_shared_ptr<T, Allocator>::get_versioned_raw_ptr()
+{
+	return versioned_raw_ptr<T, Allocator>(ptr_base<atomic_oword, T, Allocator>::myStorage.load());
+}
+
 
 // ------------------------------------------------------------------------------------
 
@@ -304,12 +312,12 @@ inline const bool atomic_shared_ptr<T, Allocator>::increment_and_try_swap(oword 
 		if (controlBlock)
 			(*controlBlock) += copyRequests;
 
-		if (!ptr_base<atomic_oword, T, Allocator>::myStorage.compare_exchange_strong(expected, desired_)) {
-			if (controlBlock)
-				(*controlBlock) -= copyRequests;
+		if (ptr_base<atomic_oword, T, Allocator>::myStorage.compare_exchange_strong(expected, desired_)) {
+			return true;
 		}
 		else {
-			return true;
+			if (controlBlock)
+				(*controlBlock) -= copyRequests;
 		}
 
 	} while (expected.myQWords[STORAGE_QWORD_OBJECTPTR] == initialVersionedPtr);
@@ -598,8 +606,8 @@ protected:
 	inline constexpr ptr_base();
 	inline constexpr ptr_base(const oword& from);
 
-	inline const oword& my_val() const;
-	inline oword& my_val();
+	inline constexpr const oword& my_val() const;
+	inline constexpr oword& my_val();
 
 	constexpr control_block<T, Allocator>* const to_control_block(const oword& from);
 	constexpr T* const to_object(const oword& from);
@@ -763,35 +771,35 @@ inline constexpr const bool operator!=(const ptr_base<StorageType, T, Allocator>
 	return operator bool();
 }
 template<class StorageType, class T, class Allocator>
-inline const oword & ptr_base<StorageType, T, Allocator>::my_val() const
+inline constexpr const oword & ptr_base<StorageType, T, Allocator>::my_val() const
 {
 	return reinterpret_cast<const oword&>(*(&myStorage));
 }
 // Concurrency SAFE
 template<class StorageType, class T, class Allocator>
-inline oword & ptr_base<StorageType, T, Allocator>::my_val()
+inline constexpr oword & ptr_base<StorageType, T, Allocator>::my_val()
 {
 	return reinterpret_cast<oword&>(*(&myStorage));
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::to_control_block(const oword & from)
 {
-	return reinterpret_cast<control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & PtrMask);
+	return reinterpret_cast<control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr T* const ptr_base<StorageType, T, Allocator>::to_object(const oword & from)
 {
-	return reinterpret_cast<T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & PtrMask);
+	return reinterpret_cast<T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr const control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::to_control_block(const oword & from) const
 {
-	return reinterpret_cast<const control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & PtrMask);
+	return reinterpret_cast<const control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr const T * const ptr_base<StorageType, T, Allocator>::to_object(const oword & from) const
 {
-	return reinterpret_cast<const T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & PtrMask);
+	return reinterpret_cast<const T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr const control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::get_control_block() const
@@ -972,83 +980,84 @@ inline shared_ptr<T, Allocator>& shared_ptr<T, Allocator>::operator=(shared_ptr<
 template <class T, class Allocator>
 class versioned_raw_ptr : public ptr_base<oword, T, Allocator> {
 public:
-	versioned_raw_ptr();
-	versioned_raw_ptr(std::nullptr_t);
+	constexpr versioned_raw_ptr();
+	constexpr versioned_raw_ptr(std::nullptr_t);
 
-	versioned_raw_ptr(versioned_raw_ptr<T, Allocator>&& other);
-	versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other);
-	versioned_raw_ptr(const shared_ptr<T, Allocator>& from);
-	versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from);
+	constexpr versioned_raw_ptr(versioned_raw_ptr<T, Allocator>&& other);
+	constexpr versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other);
 
-	versioned_raw_ptr<T, Allocator>& operator=(const versioned_raw_ptr<T, Allocator>& other);
-	versioned_raw_ptr<T, Allocator>& operator=(versioned_raw_ptr<T, Allocator>&& other);
-	versioned_raw_ptr<T, Allocator>& operator=(const shared_ptr<T, Allocator>& from);
-	versioned_raw_ptr<T, Allocator>& operator=(const atomic_shared_ptr<T, Allocator>& from);
+	explicit constexpr versioned_raw_ptr(const shared_ptr<T, Allocator>& from);
+	explicit constexpr versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from);
+
+	constexpr versioned_raw_ptr<T, Allocator>& operator=(const versioned_raw_ptr<T, Allocator>& other);
+	constexpr versioned_raw_ptr<T, Allocator>& operator=(versioned_raw_ptr<T, Allocator>&& other);
+	constexpr versioned_raw_ptr<T, Allocator>& operator=(const shared_ptr<T, Allocator>& from);
+	constexpr versioned_raw_ptr<T, Allocator>& operator=(const atomic_shared_ptr<T, Allocator>& from);
 
 private:
-	versioned_raw_ptr(const oword& from);
+	explicit constexpr versioned_raw_ptr(const oword& from);
 
 	friend class ptr_base<atomic_oword, T, Allocator>;
 	friend class ptr_base<oword, T, Allocator>;
 	friend class atomic_shared_ptr<T, Allocator>;
 };
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr()
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr()
 	: ptr_base<oword, T, Allocator>()
 {
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(std::nullptr_t)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(std::nullptr_t)
 	: versioned_raw_ptr<T, Allocator>()
 {
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(versioned_raw_ptr<T, Allocator>&& other)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(versioned_raw_ptr<T, Allocator>&& other)
 	: versioned_raw_ptr()
 {
 	operator=(std::move(other));
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other)
 	: versioned_raw_ptr()
 {
 	operator=(other);
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const shared_ptr<T, Allocator>& from)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const shared_ptr<T, Allocator>& from)
 	: ptr_base<oword, T, Allocator>(from.my_val())
 {
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from)
 	: ptr_base<oword, T, Allocator>(from.my_val())
 {
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const versioned_raw_ptr<T, Allocator>& other) {
+inline constexpr versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const versioned_raw_ptr<T, Allocator>& other) {
 	ptr_base<oword, T, Allocator>::my_val() = other.my_val();
 	return *this;
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(versioned_raw_ptr<T, Allocator>&& other) {
+inline constexpr versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(versioned_raw_ptr<T, Allocator>&& other) {
 	std::swap(ptr_base<oword, T, Allocator>::my_val(), other.my_val());
 
 	return *this;
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const shared_ptr<T, Allocator>& from)
+inline constexpr versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const shared_ptr<T, Allocator>& from)
 {
 	*this = versioned_raw_ptr<T, Allocator>(from);
 	return *this;
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const atomic_shared_ptr<T, Allocator>& from)
+inline constexpr versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const atomic_shared_ptr<T, Allocator>& from)
 {
 	*this = versioned_raw_ptr<T, Allocator>(from);
 	return *this;
 }
 template<class T, class Allocator>
-inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const oword & from)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const oword & from)
 	: ptr_base<oword, T, Allocator>(from)
 {
 }
