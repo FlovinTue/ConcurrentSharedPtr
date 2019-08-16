@@ -112,7 +112,7 @@ private:
 	inline const bool compare_exchange_strong(typename disable_deduction<PtrType>::type& expected, shared_ptr<T, Allocator>&& desired);
 
 	inline const bool increment_and_try_swap(oword& expected, const oword& desired);
-	inline const bool cas_internal(oword& expected, const oword& desired, const bool decrementPrevious, const bool captureOnFailiure = false);
+	inline const bool cas_internal(oword& expected, const oword& desired, const bool decrementPrevious, const bool captureOnFailure = false);
 	inline void try_increment(oword& expected);
 
 	enum STORAGE_QWORD : uint8_t
@@ -351,7 +351,7 @@ inline void atomic_shared_ptr<T, Allocator>::try_increment(oword & expected)
 		expected.myQWords[STORAGE_QWORD_OBJECTPTR] == initialVersionedPtr);
 }
 template<class T, class Allocator>
-inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected, const oword & desired, const bool decrementPrevious, const bool captureOnFailiure)
+inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected, const oword & desired, const bool decrementPrevious, const bool captureOnFailure)
 {
 	bool success(false);
 
@@ -379,7 +379,7 @@ inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected
 		}
 
 		if (controlBlock) {
-			(*controlBlock) -= static_cast<size_type>(!(captureOnFailiure & !success)) + static_cast<size_type>(decrementPrevious & success);
+			(*controlBlock) -= static_cast<size_type>(!(captureOnFailure & !success)) + static_cast<size_type>(decrementPrevious & success);
 		}
 	}
 	else {
@@ -388,7 +388,7 @@ inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected
 		if (static_cast<bool>(controlBlock) & decrementPrevious & success) {
 			--(*controlBlock);
 		}
-		if (!success & captureOnFailiure) {
+		if (!success & captureOnFailure) {
 			expected = copy_internal();
 		}
 	}
