@@ -72,6 +72,11 @@ public:
 
 	inline ~atomic_shared_ptr();
 
+	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
+	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
+
+	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
+	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
 
 	inline atomic_shared_ptr<T, Allocator>& operator=(const shared_ptr<T, Allocator>& from);
 	inline atomic_shared_ptr<T, Allocator>& operator=(shared_ptr<T, Allocator>&& from);
@@ -94,13 +99,6 @@ public:
 
 	inline const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr();
 private:
-	// found error within. Do not use 
-	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
-	inline const bool compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
-
-	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired);
-	inline const bool compare_exchange_strong(shared_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired);
-
 	inline const oword copy_internal();
 	inline const oword unsafe_copy_internal();
 	inline const oword unsafe_exchange_internal(const oword& with);
@@ -195,7 +193,7 @@ inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(typen
 	expected_.myQWords[STORAGE_QWORD_OBJECTPTR] = expected.my_val().myQWords[STORAGE_QWORD_OBJECTPTR];
 
 	typedef typename std::remove_reference<PtrType>::type raw_type;
-	
+
 	do {
 		if (cas_internal(expected_, desired_, true, std::is_same<raw_type, shared_ptr<T, Allocator>>())) {
 
@@ -364,16 +362,24 @@ inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected
 	desired_.myWords[STORAGE_WORD_COPYREQUEST] = 0;
 
 	if (expected.myWords[STORAGE_WORD_COPYREQUEST]) {
-		expected = ptr_base<atomic_oword, T, Allocator>::myStorage.fetch_add_to_word(1, STORAGE_WORD_COPYREQUEST);
-		expected.myWords[STORAGE_WORD_COPYREQUEST] += 1;
 
-		desired_.myWords[STORAGE_WORD_VERSION] = expected.myWords[STORAGE_WORD_VERSION] + 1;
+		oword expected_(ptr_base<atomic_oword, T, Allocator>::myStorage.fetch_add_to_word(1, STORAGE_WORD_COPYREQUEST));
+		expected_.myWords[STORAGE_WORD_COPYREQUEST] += 1;
 
-		controlBlock = to_control_block(expected);
-		success = increment_and_try_swap(expected, desired_);
+		controlBlock = to_control_block(expected_);
+
+		if (expected.myQWords[STORAGE_QWORD_OBJECTPTR] == expected_.myQWords[STORAGE_QWORD_OBJECTPTR]) {
+
+			success = increment_and_try_swap(expected, desired_);
+		}
+		else{
+			try_increment(expected_);
+		}
+
+		expected = expected_;
 
 		if (controlBlock) {
-			(*controlBlock) -= static_cast<size_type>(!captureOnFailiure) + static_cast<size_type>(decrementPrevious & success);
+			(*controlBlock) -= static_cast<size_type>(!(captureOnFailiure & !success)) + static_cast<size_type>(decrementPrevious & success);
 		}
 	}
 	else {
