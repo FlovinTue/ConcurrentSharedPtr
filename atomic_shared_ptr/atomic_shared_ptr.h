@@ -132,19 +132,16 @@ private:
 	friend class versioned_raw_ptr<T, Allocator>;
 	friend class ptr_base<oword, T, Allocator>;
 };
-// Default constructor
 template <class T, class Allocator>
 inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr()
 {
 	static_assert(std::is_same<Allocator::value_type, uint8_t>(), "value_type for allocator must be uint8_t");
 }
-// Nullptr constructor
 template<class T, class Allocator>
 inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr(const std::nullptr_t)
 	: atomic_shared_ptr<T, Allocator>()
 {
 }
-// Concurrency SAFE
 template <class T, class Allocator>
 inline atomic_shared_ptr<T, Allocator>::atomic_shared_ptr(shared_ptr<T, Allocator>&& other)
 	: atomic_shared_ptr<T, Allocator>()
