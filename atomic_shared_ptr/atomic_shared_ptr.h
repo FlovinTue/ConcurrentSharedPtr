@@ -46,7 +46,8 @@ class versioned_raw_ptr;
 template <class T>
 struct disable_deduction;
 
-static const uint64_t Ptr_Mask = std::numeric_limits<uint64_t>::max() >> 16;
+static const uint64_t Tag_Mask = 1;
+static const uint64_t Ptr_Mask = (std::numeric_limits<uint64_t>::max() >> 16) & ~Tag_Mask;
 
 template <class T, class ...Args>
 inline shared_ptr<T> make_shared(Args&&...);
@@ -82,6 +83,7 @@ public:
 	inline atomic_shared_ptr<T, Allocator>& operator=(shared_ptr<T, Allocator>&& from);
 
 	inline const shared_ptr<T, Allocator> load();
+	inline const shared_ptr<T, Allocator> load_and_tag();
 
 	inline void store(const shared_ptr<T, Allocator>& from);
 	inline void store(shared_ptr<T, Allocator>&& from);
@@ -97,8 +99,8 @@ public:
 	inline void unsafe_store(const shared_ptr<T, Allocator>& from);
 	inline void unsafe_store(shared_ptr<T, Allocator>&& from);
 
-	inline const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr();
 private:
+
 	inline const oword copy_internal();
 	inline const oword unsafe_copy_internal();
 	inline const oword unsafe_exchange_internal(const oword& with);
@@ -165,7 +167,6 @@ inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(versi
 {
 	return compare_exchange_strong(expected, shared_ptr<T, Allocator>(desired));
 }
-
 template<class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired)
 {
@@ -275,11 +276,21 @@ inline void atomic_shared_ptr<T, Allocator>::unsafe_store(shared_ptr<T, Allocato
 }
 
 template<class T, class Allocator>
-inline const versioned_raw_ptr<T, Allocator> atomic_shared_ptr<T, Allocator>::get_versioned_raw_ptr()
+inline const shared_ptr<T, Allocator> atomic_shared_ptr<T, Allocator>::load_and_tag()
 {
-	return versioned_raw_ptr<T, Allocator>(ptr_base<atomic_oword, T, Allocator>::myStorage.load());
-}
+	oword expected(ptr_base<atomic_oword, T, Allocator>::my_val());
+	oword desired;
+	do {
+		desired = expected;
+		desired.myWords[STORAGE_WORD_COPYREQUEST] += 1;
+		desired.myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
 
+	} while (!ptr_base<atomic_oword, T, Allocator>::myStorage.compare_exchange_strong(expected, desired));
+
+	try_increment(desired);
+
+	return shared_ptr<T, Allocator>(expected);
+}
 
 // ------------------------------------------------------------------------------------
 
@@ -344,8 +355,8 @@ inline void atomic_shared_ptr<T, Allocator>::try_increment(oword & expected)
 		(*controlBlock) -= copyRequests;
 
 	} while (
-		expected.myWords[STORAGE_WORD_COPYREQUEST] &&
-		expected.myQWords[STORAGE_QWORD_OBJECTPTR] == initialVersionedPtr);
+		expected.myQWords[STORAGE_QWORD_OBJECTPTR] == initialVersionedPtr &&
+		expected.myWords[STORAGE_WORD_COPYREQUEST]);
 }
 template<class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::cas_internal(oword & expected, const oword & desired, const bool decrementPrevious, const bool captureOnFailure)
@@ -442,6 +453,9 @@ inline void atomic_shared_ptr<T, Allocator>::unsafe_store_internal(const oword &
 
 	if (to_control_block(previous)) {
 		--(*to_control_block(previous));
+	}
+	else {
+		std::atomic_thread_fence(std::memory_order_release);
 	}
 }
 template<class T, class Allocator>
@@ -582,7 +596,27 @@ public:
 	inline constexpr control_block<T, Allocator>* const get_control_block();
 	inline constexpr T* const get_owned();
 
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value>* = nullptr>
+	inline const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr();
+
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value>* = nullptr>
 	inline constexpr const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr() const;
+
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value > * = nullptr>
+	inline constexpr const bool get_tag() const;
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value > * = nullptr>
+	inline constexpr const bool get_tag() const;
+
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value > * = nullptr>
+	inline constexpr void set_tag();
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value > * = nullptr>
+	inline constexpr void set_tag();
+
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value>* = nullptr>
+	inline constexpr void clear_tag();
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value>* = nullptr>
+	inline constexpr void clear_tag();
+
 
 	inline constexpr const uint16_t get_version() const;
 
@@ -635,7 +669,7 @@ protected:
 	union {
 		StorageType myStorage;
 
-		const oword myDebugView;
+		oword myDebugView;
 	};
 };
 template <class StorageType, class T, class Allocator>
@@ -658,12 +692,12 @@ inline constexpr ptr_base<StorageType, T, Allocator>::operator bool() const
 template <class StorageType, class T, class Allocator>
 inline constexpr const bool ptr_base<StorageType, T, Allocator>::operator==(const ptr_base<StorageType, T, Allocator>& other) const
 {
-	return my_val() == other.my_val();
+	return (my_val().myQWords[STORAGE_QWORD_OBJECTPTR]) == (other.my_val().myQWords[STORAGE_QWORD_OBJECTPTR]);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr const bool ptr_base<StorageType, T, Allocator>::operator!=(const ptr_base<StorageType, T, Allocator>& other) const
 {
-	return my_val() != other.my_val();
+	return !operator==(other);
 }
 // Concurrency UNSAFE
 // May be used safely so long as no other thread is reassigning or
@@ -755,7 +789,7 @@ inline constexpr const bool operator==(std::nullptr_t /*aNullptr*/, const ptr_ba
 template <class StorageType, class T, class Allocator>
 inline constexpr const bool operator!=(std::nullptr_t /*aNullptr*/, const ptr_base<StorageType, T, Allocator>& ptr)
 {
-	return ptr.operator bool();
+	return ptr;
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
@@ -763,22 +797,21 @@ inline constexpr const bool operator!=(std::nullptr_t /*aNullptr*/, const ptr_ba
 template <class StorageType, class T, class Allocator>
 inline constexpr const bool operator==(const ptr_base<StorageType, T, Allocator>& ptr, std::nullptr_t /*aNullptr*/)
 {
-	return !operator bool();
+	return !ptr;
 }
 // Concurrency SAFE
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
 template <class StorageType, class T, class Allocator>
-inline constexpr const bool operator!=(const ptr_base<StorageType, T, Allocator>& concurrent_shared_ptr, std::nullptr_t /*aNullptr*/)
+inline constexpr const bool operator!=(const ptr_base<StorageType, T, Allocator>& ptr, std::nullptr_t /*aNullptr*/)
 {
-	return operator bool();
+	return ptr;
 }
 template<class StorageType, class T, class Allocator>
 inline constexpr const oword & ptr_base<StorageType, T, Allocator>::my_val() const
 {
 	return reinterpret_cast<const oword&>(*(&myStorage));
 }
-// Concurrency SAFE
 template<class StorageType, class T, class Allocator>
 inline constexpr oword & ptr_base<StorageType, T, Allocator>::my_val()
 {
@@ -825,16 +858,61 @@ inline constexpr T * const ptr_base<StorageType, T, Allocator>::get_owned()
 	return to_object(my_val());
 }
 template<class StorageType, class T, class Allocator>
+inline constexpr const uint16_t ptr_base<StorageType, T, Allocator>::get_version() const
+{
+	return my_val().myWords[STORAGE_WORD_VERSION];
+}
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value>*>
+inline const versioned_raw_ptr<T, Allocator> ptr_base<StorageType, T, Allocator>::get_versioned_raw_ptr()
+{
+	return versioned_raw_ptr<T, Allocator>(myStorage.load());
+}
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value>*>
 inline constexpr const versioned_raw_ptr<T, Allocator> ptr_base<StorageType, T, Allocator>::get_versioned_raw_ptr() const
 {
 	return versioned_raw_ptr<T, Allocator>(my_val());
 }
 template<class StorageType, class T, class Allocator>
-inline constexpr const uint16_t ptr_base<StorageType, T, Allocator>::get_version() const
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value > *>
+inline constexpr const bool ptr_base<StorageType, T, Allocator>::get_tag() const
 {
-	return my_val().myWords[STORAGE_WORD_VERSION];
+	std::atomic_thread_fence(std::memory_order_acquire);
+	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & Tag_Mask;
 }
-// strong_raw_ptr shares in ownership of the object
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value > *>
+inline constexpr const bool ptr_base<StorageType, T, Allocator>::get_tag() const
+{
+	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & Tag_Mask;
+}
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value > *>
+inline constexpr void ptr_base<StorageType, T, Allocator>::set_tag()
+{
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
+	std::atomic_thread_fence(std::memory_order_release);
+}
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value>*>
+inline constexpr void ptr_base<StorageType, T, Allocator>::clear_tag()
+{
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~Tag_Mask;
+	std::atomic_thread_fence(std::memory_order_release);
+}
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value > *>
+inline constexpr void ptr_base<StorageType, T, Allocator>::clear_tag()
+{
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~Tag_Mask;
+}
+template<class StorageType, class T, class Allocator>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value > *>
+inline constexpr void ptr_base<StorageType, T, Allocator>::set_tag()
+{
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
+}
 template <class T, class Allocator>
 class shared_ptr : public ptr_base<oword, T, Allocator> {
 public:
@@ -842,7 +920,7 @@ public:
 
 	// The amount of memory requested from the allocator when calling
 	// make_shared
-	static constexpr std::size_t Alloc_Size_Make_Shared = sizeof(control_block<T, Allocator>) + alignof(T) + sizeof(T);
+	static constexpr std::size_t Alloc_Size_Make_Shared = sizeof(control_block<T, Allocator>) + (1 < alignof(T) ? alignof(T) : 2) + sizeof(T);
 
 	// The amount of memory requested from the allocator when taking 
 	// ownership of an object
@@ -962,15 +1040,17 @@ inline const oword shared_ptr<T, Allocator>::create_control_block(T* const objec
 template<class T, class Allocator>
 inline shared_ptr<T, Allocator>& shared_ptr<T, Allocator>::operator=(const shared_ptr<T, Allocator>& other)
 {
+	const oword otherValue(other.my_val());
+
+	if (ptr_base<oword, T, Allocator>::to_control_block(otherValue)) {
+		++(*ptr_base<oword, T, Allocator>::to_control_block(otherValue));
+	}
 	if (ptr_base<oword, T, Allocator>::get_control_block()) {
 		--(*ptr_base<oword, T, Allocator>::get_control_block());
 	}
 
-	ptr_base<oword, T, Allocator>::my_val() = other.my_val();
+	ptr_base<oword, T, Allocator>::my_val() = otherValue;
 
-	if (ptr_base<oword, T, Allocator>::get_control_block()) {
-		++(*ptr_base<oword, T, Allocator>::get_control_block());
-	}
 	return *this;
 }
 template<class T, class Allocator>
@@ -990,7 +1070,8 @@ public:
 	constexpr versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other);
 
 	explicit constexpr versioned_raw_ptr(const shared_ptr<T, Allocator>& from);
-	explicit constexpr versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from);
+
+	explicit versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from);
 
 	constexpr versioned_raw_ptr<T, Allocator>& operator=(const versioned_raw_ptr<T, Allocator>& other);
 	constexpr versioned_raw_ptr<T, Allocator>& operator=(versioned_raw_ptr<T, Allocator>&& other);
@@ -1032,13 +1113,14 @@ inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const shared
 {
 }
 template<class T, class Allocator>
-inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from)
-	: ptr_base<oword, T, Allocator>(from.my_val())
+inline versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const atomic_shared_ptr<T, Allocator>& from)
+	: ptr_base<oword, T, Allocator>(from.myStorage.load())
 {
 }
 template<class T, class Allocator>
 inline constexpr versioned_raw_ptr<T, Allocator>& versioned_raw_ptr<T, Allocator>::operator=(const versioned_raw_ptr<T, Allocator>& other) {
 	ptr_base<oword, T, Allocator>::my_val() = other.my_val();
+
 	return *this;
 }
 template<class T, class Allocator>
@@ -1064,17 +1146,17 @@ inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const oword 
 	: ptr_base<oword, T, Allocator>(from)
 {
 }
+template <class T>
+struct disable_deduction
+{
+	using type = T;
+};
 template<class T, class ...Args>
 inline shared_ptr<T, default_allocator> make_shared(Args&& ...args)
 {
 	default_allocator alloc;
 	return make_shared<T>(alloc, std::forward<Args&&>(args)...);
 }
-template <class T>
-struct disable_deduction
-{
-	using type = T;
-};
 template<class T, class Allocator, class ...Args>
 inline shared_ptr<T, Allocator> make_shared(Allocator& allocator, Args&& ...args)
 {
@@ -1082,7 +1164,7 @@ inline shared_ptr<T, Allocator> make_shared(Allocator& allocator, Args&& ...args
 
 	const std::size_t controlBlockSize(sizeof(control_block<T, Allocator>));
 	const std::size_t objectSize(sizeof(T));
-	const std::size_t alignment(alignof(T));
+	const std::size_t alignment(1 < alignof(T) ? alignof(T) : 2);
 	const std::size_t blockSize(controlBlockSize + objectSize + alignment);
 
 	uint8_t* const block(allocator.allocate(blockSize));

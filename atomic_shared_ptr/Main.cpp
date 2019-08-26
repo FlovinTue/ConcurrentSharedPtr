@@ -27,9 +27,9 @@ int main()
 		uint32_t arraySweeps(10000);
 		uint32_t runs(32);
 		float time(0.f);
-		for (uint32_t i = 0; i < runs; ++i) {
-			time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
-		}
+		//for (uint32_t i = 0; i < runs; ++i) {
+		//	time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
+		//}
 	
 	#ifdef _DEBUG
 		std::string config("DEBUG");
@@ -110,6 +110,39 @@ int main()
 		versioned_raw_ptr<int> athirteenthexp(nullptr);
 		shared_ptr<int> athirteenthdes(make_shared<int>(131));
 		const bool thirtres = athirteenth.compare_exchange_strong(athirteenthexp, athirteenthdes);
+
+		athirteenth.get_versioned_raw_ptr();
+		athirteenthdes.get_versioned_raw_ptr();
+		
+		const shared_ptr<int> preTag(athirteenth.load_and_tag());
+		const shared_ptr<int> postTag(athirteenth.load_and_tag());
+
+		const bool preTagEval(preTag.get_tag());
+		const bool postTagEval(postTag.get_tag());
+
+		const int postTagStore(*athirteenth);
+
+		atomic_shared_ptr<int> hej(make_shared<int>(5));
+		shared_ptr<int> hoj(make_shared<int>(6));
+
+		uint32_t iter(50000);
+		auto lama = [&hej, &hoj, iter]() {
+			for (uint32_t i = 0; i < iter; ++i) {
+				versioned_raw_ptr<int> hah(nullptr);
+				assert(!hej.compare_exchange_strong(hah, hoj));
+			}
+					};
+		auto lamb = [&hej, &hoj, iter]() {
+			for (uint32_t i = 0; i < iter; ++i) {
+				versioned_raw_ptr<int> hah(nullptr);
+				assert(!hej.compare_exchange_strong(hah, hoj));
+			}
+		};
+		std::thread nonsensea(lama);
+		std::thread nonsenseb(lamb);
+
+		nonsensea.join();
+		nonsenseb.join();
 
 		return 0;
 }
