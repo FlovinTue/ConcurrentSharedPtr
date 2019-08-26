@@ -3,6 +3,7 @@
 
 My take on an atomic shared pointer. 
 
+- Lock-Free (if used with a lock-free allocator)
 - It uses an interface resembling that of an std::atomic type
 - Uses internal versioning to protect against ABA problems
 - Does not (currently) support the use of differing memory orderings
