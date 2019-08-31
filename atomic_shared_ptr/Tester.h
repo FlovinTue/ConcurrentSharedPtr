@@ -7,7 +7,7 @@
 #include "Timer.h"
 #include <mutex>
 
-using namespace asp;
+using namespace gdul;
 
 template <class T>
 struct ReferenceComparison
@@ -251,7 +251,7 @@ inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 #ifndef CSP_MUTEX_COMPARE
 	uint32_t count(0);
 	for (uint32_t i = 0; i < ArraySize; ++i) {
-		const asp::control_block<T, asp::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
+		const gdul::aspdetail::control_block<T, gdul::aspdetail::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
 		const T* const directObject(myTestArray[i].get_owned());
 		const T* const sharedObject(controlBlock->get_owned());
 
