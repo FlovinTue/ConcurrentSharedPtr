@@ -28,7 +28,7 @@
 #pragma warning(push)
 #pragma warning(disable : 4324)
 
-//namespace gdul{
+namespace gdul{
 
 union oword
 {
@@ -289,6 +289,6 @@ const bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* co
 	return result;
 }
 #endif
-//}
+}
 
 #pragma warning(pop)
