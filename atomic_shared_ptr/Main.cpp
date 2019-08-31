@@ -27,9 +27,9 @@ int main()
 		uint32_t arraySweeps(10000);
 		uint32_t runs(32);
 		float time(0.f);
-		for (uint32_t i = 0; i < runs; ++i) {
-			time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
-		}
+		//for (uint32_t i = 0; i < runs; ++i) {
+		//	time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
+		//}
 	
 	#ifdef _DEBUG
 		std::string config("DEBUG");
@@ -122,27 +122,27 @@ int main()
 
 		const int postTagStore(*athirteenth);
 
-		atomic_shared_ptr<int> hej(make_shared<int>(5));
-		shared_ptr<int> hoj(make_shared<int>(6));
+		atomic_shared_ptr<int> tar(make_shared<int>(5));
+		shared_ptr<int> des(make_shared<int>(6));
 
 		uint32_t iter(50000);
-		auto lama = [&hej, &hoj, iter]() {
+		auto lama = [&des, &tar, iter]() {
 			for (uint32_t i = 0; i < iter; ++i) {
-				versioned_raw_ptr<int> hah(nullptr);
-				assert(!hej.compare_exchange_strong(hah, hoj));
+				versioned_raw_ptr<int> exp(nullptr);
+				assert(!tar.compare_exchange_strong(exp, des));
 			}
 					};
-		auto lamb = [&hej, &hoj, iter]() {
+		auto lamb = [&des, &tar, iter]() {
 			for (uint32_t i = 0; i < iter; ++i) {
-				versioned_raw_ptr<int> hah(nullptr);
-				assert(!hej.compare_exchange_strong(hah, hoj));
+				versioned_raw_ptr<int> exp(nullptr);
+				assert(!tar.compare_exchange_strong(exp, des));
 			}
 		};
-		std::thread nonsensea(lama);
-		std::thread nonsenseb(lamb);
+		std::thread threada(lama);
+		std::thread threadb(lamb);
 
-		nonsensea.join();
-		nonsenseb.join();
+		threada.join();
+		threadb.join();
 
 		return 0;
 }

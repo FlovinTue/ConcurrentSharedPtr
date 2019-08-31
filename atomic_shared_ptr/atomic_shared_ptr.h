@@ -43,7 +43,7 @@ struct disable_deduction;
 template <class T, class Allocator>
 class control_block;
 
-template <class StorageType, class T, class Allocator = aspdetail::default_allocator>
+template <class StorageType, class T, class Allocator = default_allocator>
 class ptr_base;
 
 }
@@ -600,10 +600,10 @@ public:
 	inline constexpr explicit operator T*();
 	inline constexpr explicit operator const T*() const;
 
-	inline constexpr const aspdetail::control_block<T, Allocator>* const get_control_block() const;
+	inline constexpr const control_block<T, Allocator>* const get_control_block() const;
 	inline constexpr const T* const get_owned() const;
 
-	inline constexpr aspdetail::control_block<T, Allocator>* const get_control_block();
+	inline constexpr control_block<T, Allocator>* const get_control_block();
 	inline constexpr T* const get_owned();
 
 	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value>* = nullptr>
@@ -656,10 +656,10 @@ protected:
 	inline constexpr const oword& my_val() const;
 	inline constexpr oword& my_val();
 
-	constexpr aspdetail::control_block<T, Allocator>* const to_control_block(const oword& from);
+	constexpr control_block<T, Allocator>* const to_control_block(const oword& from);
 	constexpr T* const to_object(const oword& from);
 
-	constexpr const aspdetail::control_block<T, Allocator>* const to_control_block(const oword& from) const;
+	constexpr const control_block<T, Allocator>* const to_control_block(const oword& from) const;
 	constexpr const T* const to_object(const oword& from) const;
 
 
@@ -828,27 +828,27 @@ inline constexpr oword & ptr_base<StorageType, T, Allocator>::my_val()
 	return reinterpret_cast<oword&>(*(&myStorage));
 }
 template <class StorageType, class T, class Allocator>
-inline constexpr aspdetail::control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::to_control_block(const oword & from)
+inline constexpr control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::to_control_block(const oword & from)
 {
-	return reinterpret_cast<aspdetail::control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & aspdetail::Ptr_Mask);
+	return reinterpret_cast<control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr T* const ptr_base<StorageType, T, Allocator>::to_object(const oword & from)
 {
-	return reinterpret_cast<T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & aspdetail::Ptr_Mask);
+	return reinterpret_cast<T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
-inline constexpr const aspdetail::control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::to_control_block(const oword & from) const
+inline constexpr const control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::to_control_block(const oword & from) const
 {
-	return reinterpret_cast<const aspdetail::control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & aspdetail::Ptr_Mask);
+	return reinterpret_cast<const control_block<T, Allocator>* const>(from.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
 inline constexpr const T * const ptr_base<StorageType, T, Allocator>::to_object(const oword & from) const
 {
-	return reinterpret_cast<const T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & aspdetail::Ptr_Mask);
+	return reinterpret_cast<const T* const>(from.myQWords[STORAGE_QWORD_OBJECTPTR] & Ptr_Mask);
 }
 template <class StorageType, class T, class Allocator>
-inline constexpr const aspdetail::control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::get_control_block() const
+inline constexpr const control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::get_control_block() const
 {
 	return to_control_block(my_val());
 }
@@ -858,7 +858,7 @@ inline constexpr const T * const ptr_base<StorageType, T, Allocator>::get_owned(
 	return to_object(my_val());
 }
 template <class StorageType, class T, class Allocator>
-inline constexpr aspdetail::control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::get_control_block()
+inline constexpr control_block<T, Allocator>* const ptr_base<StorageType, T, Allocator>::get_control_block()
 {
 	return to_control_block(my_val());
 }
@@ -889,39 +889,39 @@ template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value > *>
 inline constexpr const bool ptr_base<StorageType, T, Allocator>::get_tag() const
 {
 	::std::atomic_thread_fence(::std::memory_order_acquire);
-	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & aspdetail::Tag_Mask;
+	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & Tag_Mask;
 }
 template<class StorageType, class T, class Allocator>
 template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value > *>
 inline constexpr const bool ptr_base<StorageType, T, Allocator>::get_tag() const
 {
-	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & aspdetail::Tag_Mask;
+	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & Tag_Mask;
 }
 template<class StorageType, class T, class Allocator>
 template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value > *>
 inline constexpr void ptr_base<StorageType, T, Allocator>::set_tag()
 {
-	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= aspdetail::Tag_Mask;
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
 	::std::atomic_thread_fence(::std::memory_order_release);
 }
 template<class StorageType, class T, class Allocator>
 template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value>*>
 inline constexpr void ptr_base<StorageType, T, Allocator>::clear_tag()
 {
-	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~aspdetail::Tag_Mask;
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~Tag_Mask;
 	::std::atomic_thread_fence(::std::memory_order_release);
 }
 template<class StorageType, class T, class Allocator>
 template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value > *>
 inline constexpr void ptr_base<StorageType, T, Allocator>::clear_tag()
 {
-	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~aspdetail::Tag_Mask;
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~Tag_Mask;
 }
 template<class StorageType, class T, class Allocator>
 template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value > *>
 inline constexpr void ptr_base<StorageType, T, Allocator>::set_tag()
 {
-	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= aspdetail::Tag_Mask;
+	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
 }
 }
 template <class T, class Allocator>
