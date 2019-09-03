@@ -29,10 +29,10 @@ namespace gdul {
 
 namespace aspdetail {
 
-typedef ::std::allocator<uint8_t> default_allocator;
+typedef std::allocator<uint8_t> default_allocator;
 
 static const uint64_t Tag_Mask = 1;
-static const uint64_t Ptr_Mask = (::std::numeric_limits<uint64_t>::max() >> 16) & ~aspdetail::Tag_Mask;
+static const uint64_t Ptr_Mask = (std::numeric_limits<uint64_t>::max() >> 16) & ~aspdetail::Tag_Mask;
 
 template <class T>
 class default_deleter;
@@ -71,7 +71,7 @@ public:
 	typedef typename aspdetail::ptr_base<atomic_oword, T, Allocator>::size_type size_type;
 
 	inline constexpr atomic_shared_ptr();
-	inline constexpr atomic_shared_ptr(const ::std::nullptr_t);
+	inline constexpr atomic_shared_ptr(const std::nullptr_t);
 
 	inline atomic_shared_ptr(const shared_ptr<T, Allocator>& from);
 	inline atomic_shared_ptr(shared_ptr<T, Allocator>&& from);
@@ -142,10 +142,10 @@ private:
 template <class T, class Allocator>
 inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr()
 {
-	static_assert(::std::is_same<Allocator::value_type, uint8_t>(), "value_type for allocator must be uint8_t");
+	static_assert(std::is_same<Allocator::value_type, uint8_t>(), "value_type for allocator must be uint8_t");
 }
 template<class T, class Allocator>
-inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr(const ::std::nullptr_t)
+inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr(const std::nullptr_t)
 	: atomic_shared_ptr<T, Allocator>()
 {
 }
@@ -153,7 +153,7 @@ template <class T, class Allocator>
 inline atomic_shared_ptr<T, Allocator>::atomic_shared_ptr(shared_ptr<T, Allocator>&& other)
 	: atomic_shared_ptr<T, Allocator>()
 {
-	unsafe_store(::std::move(other));
+	unsafe_store(std::move(other));
 }
 template<class T, class Allocator>
 inline atomic_shared_ptr<T, Allocator>::atomic_shared_ptr(const shared_ptr<T, Allocator>& from)
@@ -175,7 +175,7 @@ inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(versi
 template<class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(versioned_raw_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired)
 {
-	return compare_exchange_strong<decltype(expected)>(expected, ::std::move(desired));
+	return compare_exchange_strong<decltype(expected)>(expected, std::move(desired));
 }
 template<class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(shared_ptr<T, Allocator>& expected, const shared_ptr<T, Allocator>& desired)
@@ -185,7 +185,7 @@ inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(share
 template<class T, class Allocator>
 inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(shared_ptr<T, Allocator>& expected, shared_ptr<T, Allocator>&& desired)
 {
-	return compare_exchange_strong<decltype(expected)>(expected, ::std::move(desired));
+	return compare_exchange_strong<decltype(expected)>(expected, std::move(desired));
 }
 template<class T, class Allocator>
 template<class PtrType>
@@ -195,10 +195,10 @@ inline const bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(typen
 	oword expected_(aspdetail::ptr_base<atomic_oword, T, Allocator>::my_val());
 	expected_.myQWords[STORAGE_QWORD_OBJECTPTR] = expected.my_val().myQWords[STORAGE_QWORD_OBJECTPTR];
 
-	typedef typename ::std::remove_reference<PtrType>::type raw_type;
+	typedef typename std::remove_reference<PtrType>::type raw_type;
 
 	do {
-		if (cas_internal(expected_, desired_, true, ::std::is_same<raw_type, shared_ptr<T, Allocator>>())) {
+		if (cas_internal(expected_, desired_, true, std::is_same<raw_type, shared_ptr<T, Allocator>>())) {
 
 			desired.my_val() = oword();
 
@@ -220,7 +220,7 @@ inline atomic_shared_ptr<T, Allocator>& atomic_shared_ptr<T, Allocator>::operato
 template<class T, class Allocator>
 inline atomic_shared_ptr<T, Allocator>& atomic_shared_ptr<T, Allocator>::operator=(shared_ptr<T, Allocator>&& from)
 {
-	store(::std::move(from));
+	store(std::move(from));
 	return *this;
 }
 template<class T, class Allocator>
@@ -426,7 +426,7 @@ inline const oword atomic_shared_ptr<T, Allocator>::copy_internal()
 template <class T, class Allocator>
 inline const oword atomic_shared_ptr<T, Allocator>::unsafe_copy_internal()
 {
-	::std::atomic_thread_fence(::std::memory_order_acquire);
+	std::atomic_thread_fence(std::memory_order_acquire);
 
 	if (aspdetail::ptr_base<atomic_oword, T, Allocator>::operator bool()) {
 		++(*aspdetail::ptr_base<atomic_oword, T, Allocator>::get_control_block());
@@ -437,21 +437,21 @@ inline const oword atomic_shared_ptr<T, Allocator>::unsafe_copy_internal()
 template<class T, class Allocator>
 inline const oword atomic_shared_ptr<T, Allocator>::unsafe_exchange_internal(const oword & with)
 {
-	::std::atomic_thread_fence(::std::memory_order_acquire);
+	std::atomic_thread_fence(std::memory_order_acquire);
 
 	const oword old(aspdetail::ptr_base<atomic_oword, T, Allocator>::my_val());
 
 	aspdetail::ptr_base<atomic_oword, T, Allocator>::my_val() = with;
 	aspdetail::ptr_base<atomic_oword, T, Allocator>::my_val().myWords[STORAGE_WORD_VERSION] = old.myWords[STORAGE_WORD_VERSION] + 1;
 
-	::std::atomic_thread_fence(::std::memory_order_release);
+	std::atomic_thread_fence(std::memory_order_release);
 
 	return old;
 }
 template <class T, class Allocator>
 inline void atomic_shared_ptr<T, Allocator>::unsafe_store_internal(const oword & from)
 {
-	::std::atomic_thread_fence(::std::memory_order_acquire);
+	std::atomic_thread_fence(std::memory_order_acquire);
 
 	const oword previous(aspdetail::ptr_base<atomic_oword, T, Allocator>::my_val());
 	aspdetail::ptr_base<atomic_oword, T, Allocator>::my_val() = from;
@@ -460,7 +460,7 @@ inline void atomic_shared_ptr<T, Allocator>::unsafe_store_internal(const oword &
 		--(*to_control_block(previous));
 	}
 	else {
-		::std::atomic_thread_fence(::std::memory_order_release);
+		std::atomic_thread_fence(std::memory_order_release);
 	}
 }
 template<class T, class Allocator>
@@ -477,9 +477,9 @@ class control_block
 public:
 	typedef typename atomic_shared_ptr<T>::size_type size_type;
 
-	control_block(const ::std::size_t blockSize, T* const object, Allocator& allocator);
+	control_block(const std::size_t blockSize, T* const object, Allocator& allocator);
 	template <class Deleter>
-	control_block(const ::std::size_t blockSize, T* const object, Deleter&& deleter, Allocator& allocator);
+	control_block(const std::size_t blockSize, T* const object, Deleter&& deleter, Allocator& allocator);
 
 	T* const get_owned();
 	const T* const get_owned() const;
@@ -496,14 +496,14 @@ private:
 
 	void destroy();
 
-	::std::atomic<size_type> myUseCount;
-	::std::function<void(T*)> myDeleter;
-	const ::std::size_t myBlockSize;
+	std::atomic<size_type> myUseCount;
+	std::function<void(T*)> myDeleter;
+	const std::size_t myBlockSize;
 	T* const myPtr;
 	Allocator myAllocator;
 };
 template<class T, class Allocator>
-inline aspdetail::control_block<T, Allocator>::control_block(const ::std::size_t blockSize, T* const object, Allocator& allocator)
+inline aspdetail::control_block<T, Allocator>::control_block(const std::size_t blockSize, T* const object, Allocator& allocator)
 	: myUseCount(1)
 	, myDeleter([](T* object) { object->~T(); })
 	, myPtr(object)
@@ -513,9 +513,9 @@ inline aspdetail::control_block<T, Allocator>::control_block(const ::std::size_t
 }
 template <class T, class Allocator>
 template<class Deleter>
-inline aspdetail::control_block<T, Allocator>::control_block(const ::std::size_t blockSize, T* const object, Deleter&& deleter, Allocator& allocator)
+inline aspdetail::control_block<T, Allocator>::control_block(const std::size_t blockSize, T* const object, Deleter&& deleter, Allocator& allocator)
 	: myUseCount(1)
-	, myDeleter(::std::forward<Deleter&&>(deleter))
+	, myDeleter(std::forward<Deleter&&>(deleter))
 	, myPtr(object)
 	, myBlockSize(blockSize)
 	, myAllocator(allocator)
@@ -524,7 +524,7 @@ inline aspdetail::control_block<T, Allocator>::control_block(const ::std::size_t
 template <class T, class Allocator>
 inline const typename control_block<T, Allocator>::size_type control_block<T, Allocator>::operator--()
 {
-	const size_type useCount(myUseCount.fetch_sub(1, ::std::memory_order_acq_rel) - 1);
+	const size_type useCount(myUseCount.fetch_sub(1, std::memory_order_acq_rel) - 1);
 	if (!useCount) {
 		destroy();
 	}
@@ -533,12 +533,12 @@ inline const typename control_block<T, Allocator>::size_type control_block<T, Al
 template <class T, class Allocator>
 inline const typename control_block<T, Allocator>::size_type control_block<T, Allocator>::operator++()
 {
-	return myUseCount.fetch_add(1, ::std::memory_order_relaxed) + 1;
+	return myUseCount.fetch_add(1, std::memory_order_relaxed) + 1;
 }
 template <class T, class Allocator>
 inline const typename control_block<T, Allocator>::size_type control_block<T, Allocator>::operator-=(const size_type decrement)
 {
-	const size_type useCount(myUseCount.fetch_sub(decrement, ::std::memory_order_acq_rel) - decrement);
+	const size_type useCount(myUseCount.fetch_sub(decrement, std::memory_order_acq_rel) - decrement);
 	if (!useCount) {
 		destroy();
 	}
@@ -547,7 +547,7 @@ inline const typename control_block<T, Allocator>::size_type control_block<T, Al
 template <class T, class Allocator>
 inline const typename control_block<T, Allocator>::size_type control_block<T, Allocator>::operator+=(const size_type increment)
 {
-	return myUseCount.fetch_add(increment, ::std::memory_order_relaxed) + increment;
+	return myUseCount.fetch_add(increment, std::memory_order_relaxed) + increment;
 }
 template <class T, class Allocator>
 inline T* const control_block<T, Allocator>::get_owned()
@@ -562,7 +562,7 @@ inline const T * const control_block<T, Allocator>::get_owned() const
 template <class T, class Allocator>
 inline const typename control_block<T, Allocator>::size_type control_block<T, Allocator>::use_count() const
 {
-	return myUseCount.load(::std::memory_order_acquire);
+	return myUseCount.load(std::memory_order_acquire);
 }
 template <class T, class Allocator>
 inline void control_block<T, Allocator>::destroy()
@@ -590,7 +590,7 @@ struct disable_deduction
 template <class StorageType, class T, class Allocator>
 class ptr_base {
 public:
-	typedef ::std::size_t size_type;
+	typedef std::size_t size_type;
 
 	inline constexpr operator bool() const;
 
@@ -606,25 +606,25 @@ public:
 	inline constexpr control_block<T, Allocator>* const get_control_block();
 	inline constexpr T* const get_owned();
 
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value>* = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value>* = nullptr>
 	inline const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr();
 
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, oword>::value>* = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value>* = nullptr>
 	inline constexpr const versioned_raw_ptr<T, Allocator> get_versioned_raw_ptr() const;
 
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value > * = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value > * = nullptr>
 	inline constexpr const bool get_tag() const;
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, oword>::value > * = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value > * = nullptr>
 	inline constexpr const bool get_tag() const;
 
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value > * = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value > * = nullptr>
 	inline constexpr void set_tag();
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, oword>::value > * = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value > * = nullptr>
 	inline constexpr void set_tag();
 
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value>* = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, atomic_oword>::value>* = nullptr>
 	inline constexpr void clear_tag();
-	template <class U = StorageType, ::std::enable_if_t<::std::is_same<U, oword>::value>* = nullptr>
+	template <class U = StorageType, std::enable_if_t<std::is_same<U, oword>::value>* = nullptr>
 	inline constexpr void clear_tag();
 
 
@@ -789,7 +789,7 @@ inline T & ptr_base<StorageType, T, Allocator>::operator[](const size_type index
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
 template <class StorageType, class T, class Allocator>
-inline constexpr const bool operator==(::std::nullptr_t /*aNullptr*/, const ptr_base<StorageType, T, Allocator>& ptr)
+inline constexpr const bool operator==(std::nullptr_t /*aNullptr*/, const ptr_base<StorageType, T, Allocator>& ptr)
 {
 	return !ptr;
 }
@@ -797,7 +797,7 @@ inline constexpr const bool operator==(::std::nullptr_t /*aNullptr*/, const ptr_
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
 template <class StorageType, class T, class Allocator>
-inline constexpr const bool operator!=(::std::nullptr_t /*aNullptr*/, const ptr_base<StorageType, T, Allocator>& ptr)
+inline constexpr const bool operator!=(std::nullptr_t /*aNullptr*/, const ptr_base<StorageType, T, Allocator>& ptr)
 {
 	return ptr;
 }
@@ -805,7 +805,7 @@ inline constexpr const bool operator!=(::std::nullptr_t /*aNullptr*/, const ptr_
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
 template <class StorageType, class T, class Allocator>
-inline constexpr const bool operator==(const ptr_base<StorageType, T, Allocator>& ptr, ::std::nullptr_t /*aNullptr*/)
+inline constexpr const bool operator==(const ptr_base<StorageType, T, Allocator>& ptr, std::nullptr_t /*aNullptr*/)
 {
 	return !ptr;
 }
@@ -813,7 +813,7 @@ inline constexpr const bool operator==(const ptr_base<StorageType, T, Allocator>
 // Safe to use, however, may yield fleeting results if this object is reassigned 
 // during use
 template <class StorageType, class T, class Allocator>
-inline constexpr const bool operator!=(const ptr_base<StorageType, T, Allocator>& ptr, ::std::nullptr_t /*aNullptr*/)
+inline constexpr const bool operator!=(const ptr_base<StorageType, T, Allocator>& ptr, std::nullptr_t /*aNullptr*/)
 {
 	return ptr;
 }
@@ -873,52 +873,52 @@ inline constexpr const uint16_t ptr_base<StorageType, T, Allocator>::get_version
 	return my_val().myWords[STORAGE_WORD_VERSION];
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value>*>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value>*>
 inline const versioned_raw_ptr<T, Allocator> ptr_base<StorageType, T, Allocator>::get_versioned_raw_ptr()
 {
 	return versioned_raw_ptr<T, Allocator>(myStorage.load());
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value>*>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value>*>
 inline constexpr const versioned_raw_ptr<T, Allocator> ptr_base<StorageType, T, Allocator>::get_versioned_raw_ptr() const
 {
 	return versioned_raw_ptr<T, Allocator>(my_val());
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value > *>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value > *>
 inline constexpr const bool ptr_base<StorageType, T, Allocator>::get_tag() const
 {
-	::std::atomic_thread_fence(::std::memory_order_acquire);
+	std::atomic_thread_fence(std::memory_order_acquire);
 	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & Tag_Mask;
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value > *>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value > *>
 inline constexpr const bool ptr_base<StorageType, T, Allocator>::get_tag() const
 {
 	return my_val().myQWords[STORAGE_QWORD_OBJECTPTR] & Tag_Mask;
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value > *>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value > *>
 inline constexpr void ptr_base<StorageType, T, Allocator>::set_tag()
 {
 	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
-	::std::atomic_thread_fence(::std::memory_order_release);
+	std::atomic_thread_fence(std::memory_order_release);
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, atomic_oword>::value>*>
+template<class U, std::enable_if_t<std::is_same<U, atomic_oword>::value>*>
 inline constexpr void ptr_base<StorageType, T, Allocator>::clear_tag()
 {
 	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~Tag_Mask;
-	::std::atomic_thread_fence(::std::memory_order_release);
+	std::atomic_thread_fence(std::memory_order_release);
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value > *>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value > *>
 inline constexpr void ptr_base<StorageType, T, Allocator>::clear_tag()
 {
 	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] &= ~Tag_Mask;
 }
 template<class StorageType, class T, class Allocator>
-template<class U, ::std::enable_if_t<::std::is_same<U, oword>::value > *>
+template<class U, std::enable_if_t<std::is_same<U, oword>::value > *>
 inline constexpr void ptr_base<StorageType, T, Allocator>::set_tag()
 {
 	my_val().myQWords[STORAGE_QWORD_OBJECTPTR] |= Tag_Mask;
@@ -931,15 +931,15 @@ public:
 
 	// The amount of memory requested from the allocator when calling
 	// make_shared
-	static constexpr ::std::size_t Alloc_Size_Make_Shared = sizeof(aspdetail::control_block<T, Allocator>) + (1 < alignof(T) ? alignof(T) : 2) + sizeof(T);
+	static constexpr std::size_t Alloc_Size_Make_Shared = sizeof(aspdetail::control_block<T, Allocator>) + (1 < alignof(T) ? alignof(T) : 2) + sizeof(T);
 
 	// The amount of memory requested from the allocator when taking 
 	// ownership of an object
-	static constexpr ::std::size_t Alloc_Size_Claim = sizeof(aspdetail::control_block<T, Allocator>);
+	static constexpr std::size_t Alloc_Size_Claim = sizeof(aspdetail::control_block<T, Allocator>);
 
 	inline shared_ptr(const shared_ptr<T, Allocator>& other);
 	inline shared_ptr(shared_ptr<T, Allocator>&& other);
-	inline shared_ptr(::std::nullptr_t);
+	inline shared_ptr(std::nullptr_t);
 
 	inline explicit shared_ptr(T* const object);
 	template <class Deleter>
@@ -980,10 +980,10 @@ template<class T, class Allocator>
 inline shared_ptr<T, Allocator>::shared_ptr(shared_ptr<T, Allocator>&& other)
 	: shared_ptr<T, Allocator>()
 {
-	operator=(::std::move(other));
+	operator=(std::move(other));
 }
 template<class T, class Allocator>
-inline shared_ptr<T, Allocator>::shared_ptr(::std::nullptr_t)
+inline shared_ptr<T, Allocator>::shared_ptr(std::nullptr_t)
 	: shared_ptr<T, Allocator>()
 {
 }
@@ -1007,7 +1007,7 @@ inline shared_ptr<T, Allocator>::shared_ptr(T* const object, Deleter&& deleter)
 	: shared_ptr<T, Allocator>()
 {
 	aspdetail::default_allocator alloc;
-	aspdetail::ptr_base<oword, T, Allocator>::my_val() = create_control_block(object, ::std::forward<Deleter&&>(deleter), alloc);
+	aspdetail::ptr_base<oword, T, Allocator>::my_val() = create_control_block(object, std::forward<Deleter&&>(deleter), alloc);
 }
 // The Deleter callable has signature void(T* arg)
 template<class T, class Allocator>
@@ -1015,7 +1015,7 @@ template<class Deleter>
 inline shared_ptr<T, Allocator>::shared_ptr(T * const object, Deleter && deleter, Allocator & allocator)
 	: shared_ptr<T, Allocator>()
 {
-	aspdetail::ptr_base<oword, T, Allocator>::my_val() = create_control_block(object, ::std::forward<Deleter&&>(deleter), allocator);
+	aspdetail::ptr_base<oword, T, Allocator>::my_val() = create_control_block(object, std::forward<Deleter&&>(deleter), allocator);
 }
 template<class T, class Allocator>
 inline shared_ptr<T, Allocator>::shared_ptr(const oword & from)
@@ -1028,13 +1028,13 @@ inline const oword shared_ptr<T, Allocator>::create_control_block(T* const objec
 {
 	aspdetail::control_block<T, Allocator>* controlBlock(nullptr);
 
-	const ::std::size_t blockSize(sizeof(aspdetail::control_block<T, Allocator>));
+	const std::size_t blockSize(sizeof(aspdetail::control_block<T, Allocator>));
 
 	void* block(nullptr);
 
 	try {
 		block = allocator.allocate(blockSize);
-		controlBlock = new (block) aspdetail::control_block<T, Allocator>(blockSize, object, ::std::forward<Deleter&&>(deleter), allocator);
+		controlBlock = new (block) aspdetail::control_block<T, Allocator>(blockSize, object, std::forward<Deleter&&>(deleter), allocator);
 	}
 	catch (...) {
 		allocator.deallocate(static_cast<uint8_t*>(block), blockSize);
@@ -1075,7 +1075,7 @@ template <class T, class Allocator>
 class versioned_raw_ptr : public aspdetail::ptr_base<oword, T, Allocator> {
 public:
 	constexpr versioned_raw_ptr();
-	constexpr versioned_raw_ptr(::std::nullptr_t);
+	constexpr versioned_raw_ptr(std::nullptr_t);
 
 	constexpr versioned_raw_ptr(versioned_raw_ptr<T, Allocator>&& other);
 	constexpr versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other);
@@ -1102,7 +1102,7 @@ inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr()
 {
 }
 template<class T, class Allocator>
-inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(::std::nullptr_t)
+inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(std::nullptr_t)
 	: versioned_raw_ptr<T, Allocator>()
 {
 }
@@ -1110,7 +1110,7 @@ template<class T, class Allocator>
 inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(versioned_raw_ptr<T, Allocator>&& other)
 	: versioned_raw_ptr()
 {
-	operator=(::std::move(other));
+	operator=(std::move(other));
 }
 template<class T, class Allocator>
 inline constexpr versioned_raw_ptr<T, Allocator>::versioned_raw_ptr(const versioned_raw_ptr<T, Allocator>& other)
@@ -1161,30 +1161,30 @@ template<class T, class ...Args>
 inline shared_ptr<T, aspdetail::default_allocator> make_shared(Args&& ...args)
 {
 	aspdetail::default_allocator alloc;
-	return make_shared<T>(alloc, ::std::forward<Args&&>(args)...);
+	return make_shared<T>(alloc, std::forward<Args&&>(args)...);
 }
 template<class T, class Allocator, class ...Args>
 inline shared_ptr<T, Allocator> make_shared(Allocator& allocator, Args&& ...args)
 {
 	shared_ptr<T, Allocator> returnValue;
 
-	const ::std::size_t controlBlockSize(sizeof(aspdetail::control_block<T, Allocator>));
-	const ::std::size_t objectSize(sizeof(T));
-	const ::std::size_t alignment(1 < alignof(T) ? alignof(T) : 2);
-	const ::std::size_t blockSize(controlBlockSize + objectSize + alignment);
+	const std::size_t controlBlockSize(sizeof(aspdetail::control_block<T, Allocator>));
+	const std::size_t objectSize(sizeof(T));
+	const std::size_t alignment(1 < alignof(T) ? alignof(T) : 2);
+	const std::size_t blockSize(controlBlockSize + objectSize + alignment);
 
 	uint8_t* const block(allocator.allocate(blockSize));
 
-	const ::std::size_t controlBlockOffset(0);
-	const ::std::size_t controlBlockEndAddr(reinterpret_cast<std::size_t>(block + controlBlockSize));
-	const ::std::size_t alignmentRemainder(controlBlockEndAddr % alignment);
-	const ::std::size_t alignmentOffset(alignment - (alignmentRemainder ? alignmentRemainder : alignment));
-	const ::std::size_t objectOffset(controlBlockOffset + controlBlockSize + alignmentOffset);
+	const std::size_t controlBlockOffset(0);
+	const std::size_t controlBlockEndAddr(reinterpret_cast<std::size_t>(block + controlBlockSize));
+	const std::size_t alignmentRemainder(controlBlockEndAddr % alignment);
+	const std::size_t alignmentOffset(alignment - (alignmentRemainder ? alignmentRemainder : alignment));
+	const std::size_t objectOffset(controlBlockOffset + controlBlockSize + alignmentOffset);
 
 	aspdetail::control_block<T, Allocator> * controlBlock(nullptr);
 	T* object(nullptr);
 	try {
-		object = new (reinterpret_cast<uint8_t*>(block) + objectOffset) T(::std::forward<Args&&>(args)...);
+		object = new (reinterpret_cast<uint8_t*>(block) + objectOffset) T(std::forward<Args&&>(args)...);
 		controlBlock = new (reinterpret_cast<uint8_t*>(block) + controlBlockOffset) aspdetail::control_block<T, Allocator>(blockSize, object, allocator);
 	}
 	catch (...) {
