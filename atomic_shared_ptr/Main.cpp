@@ -27,9 +27,9 @@ int main()
 		uint32_t arraySweeps(10000);
 		uint32_t runs(32);
 		float time(0.f);
-		//for (uint32_t i = 0; i < runs; ++i) {
-		//	time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
-		//}
+		for (uint32_t i = 0; i < runs; ++i) {
+			time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
+		}
 	
 	#ifdef _DEBUG
 		std::string config("DEBUG");
