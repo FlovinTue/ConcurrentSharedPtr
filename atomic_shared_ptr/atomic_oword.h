@@ -104,7 +104,7 @@ private:
 		oword myValue;
 		volatile int64_t myStorage[2];
 	};
-	bool cas_internal(int64_t* expected, const int64_t* const desired);
+	bool cas_internal(int64_t* expected, const int64_t* desired);
 };
 
 template<class word_type>
@@ -266,12 +266,12 @@ constexpr oword & atomic_oword::my_val()
 	return myValue;
 }
 #ifdef _MSC_VER
-bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* const desired)
+bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* desired)
 {
 	return _InterlockedCompareExchange128(&myStorage[0], desired[1], desired[0], expected);
 }
 #elif __GNUC__
-bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* const desired)
+bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* desired)
 {
 	bool result;
 	__asm__ __volatile__
