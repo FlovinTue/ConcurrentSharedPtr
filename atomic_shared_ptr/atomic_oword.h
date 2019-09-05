@@ -66,34 +66,34 @@ private:
 public:
 	constexpr atomic_oword();
 
-	atomic_oword(const oword& value);
+	atomic_oword(oword& value);
 
-	const bool compare_exchange_strong(oword& expected, const oword& desired);
+	bool compare_exchange_strong(oword& expected, const oword& desired);
 
-	const oword exchange(const oword& desired);
-	const oword exchange_qword(const uint64_t value, const uint8_t atIndex);
-	const oword exchange_dword(const uint32_t value, const uint8_t atIndex);
-	const oword exchange_word(const uint16_t value, const uint8_t atIndex);
-	const oword exchange_byte(const uint8_t value, const uint8_t atIndex);
+	oword exchange(const oword& desired);
+	oword exchange_qword(uint64_t value, uint8_t atIndex);
+	oword exchange_dword(uint32_t value, uint8_t atIndex);
+	oword exchange_word(uint16_t value, uint8_t atIndex);
+	oword exchange_byte(uint8_t value, uint8_t atIndex);
 
 	void store(const oword& desired);
-	const oword load();
+	oword load();
 
-	const oword fetch_add_to_qword(const uint64_t value, const uint8_t atIndex);
-	const oword fetch_add_to_dword(const uint32_t value, const uint8_t atIndex);
-	const oword fetch_add_to_word(const uint16_t value, const uint8_t atIndex);
-	const oword fetch_add_to_byte(const uint8_t value, const uint8_t atIndex);
-	const oword fetch_sub_to_qword(const uint64_t value, const uint8_t atIndex);
-	const oword fetch_sub_to_dword(const uint32_t value, const uint8_t atIndex);
-	const oword fetch_sub_to_word(const uint16_t value, const uint8_t atIndex);
-	const oword fetch_sub_to_byte(const uint8_t value, const uint8_t atIndex);
+	oword fetch_add_to_qword(uint64_t value, uint8_t atIndex);
+	oword fetch_add_to_dword(uint32_t value, uint8_t atIndex);
+	oword fetch_add_to_word(uint16_t value, uint8_t atIndex);
+	oword fetch_add_to_byte(uint8_t value, uint8_t atIndex);
+	oword fetch_sub_to_qword(uint64_t value, uint8_t atIndex);
+	oword fetch_sub_to_dword(uint32_t value, uint8_t atIndex);
+	oword fetch_sub_to_word(uint16_t value, uint8_t atIndex);
+	oword fetch_sub_to_byte(uint8_t value, uint8_t atIndex);
 
 	template <class word_type>
-	const oword fetch_add_to_word_type(const typename disable_deduction<word_type>::type& value, const uint8_t atIndex);
+	oword fetch_add_to_word_type(const typename disable_deduction<word_type>::type& value, uint8_t atIndex);
 	template <class word_type>
-	const oword fetch_sub_to_word_type(const typename disable_deduction<word_type>::type& value, const uint8_t atIndex);
+	oword fetch_sub_to_word_type(const typename disable_deduction<word_type>::type& value, uint8_t atIndex);
 	template <class word_type>
-	const oword exchange_word_type(const typename disable_deduction<word_type>::type& value, const uint8_t atIndex);
+	oword exchange_word_type(const typename disable_deduction<word_type>::type& value, uint8_t atIndex);
 
 	constexpr const oword& my_val() const;
 	constexpr oword& my_val();
@@ -104,11 +104,11 @@ private:
 		oword myValue;
 		volatile int64_t myStorage[2];
 	};
-	const bool cas_internal(int64_t* const expected, const int64_t* const desired);
+	bool cas_internal(int64_t* expected, const int64_t* const desired);
 };
 
 template<class word_type>
-inline const oword atomic_oword::fetch_add_to_word_type(const typename disable_deduction<word_type>::type& value, const uint8_t atIndex)
+inline oword atomic_oword::fetch_add_to_word_type(const typename disable_deduction<word_type>::type& value, uint8_t atIndex)
 {
 	static_assert(std::is_integral<word_type>(), "Only integers allowed as value type");
 
@@ -131,7 +131,7 @@ inline const oword atomic_oword::fetch_add_to_word_type(const typename disable_d
 	return expected;
 }
 template<class word_type>
-inline const oword atomic_oword::fetch_sub_to_word_type(const typename disable_deduction<word_type>::type& value, const uint8_t atIndex)
+inline oword atomic_oword::fetch_sub_to_word_type(const typename disable_deduction<word_type>::type& value, uint8_t atIndex)
 {
 	static_assert(std::is_integral<word_type>(), "Only integers allowed as value type");
 
@@ -154,7 +154,7 @@ inline const oword atomic_oword::fetch_sub_to_word_type(const typename disable_d
 	return expected;
 }
 template<class word_type>
-inline const oword atomic_oword::exchange_word_type(const typename disable_deduction<word_type>::type& value, const uint8_t atIndex)
+inline oword atomic_oword::exchange_word_type(const typename disable_deduction<word_type>::type& value, uint8_t atIndex)
 {
 	static_assert(std::is_integral<word_type>(), "Only integers allowed as value type");
 
@@ -180,84 +180,84 @@ constexpr atomic_oword::atomic_oword()
 	: myStorage{ 0 }
 {
 }
-inline atomic_oword::atomic_oword(const oword & value)
+inline atomic_oword::atomic_oword(oword & value)
 	: myValue(value)
 {
 }
-const bool atomic_oword::compare_exchange_strong(oword & expected, const oword & desired)
+bool atomic_oword::compare_exchange_strong(oword & expected, const oword& desired)
 {
 	return cas_internal(expected.myQWords_s, desired.myQWords_s);
 }
-const oword atomic_oword::exchange(const oword& desired)
+oword atomic_oword::exchange(const oword& desired)
 {
 	oword expected(my_val());
 	while (!compare_exchange_strong(expected, desired));
 	return expected;
 }
-const oword atomic_oword::exchange_qword(const uint64_t value, const uint8_t atIndex)
+oword atomic_oword::exchange_qword(uint64_t value, uint8_t atIndex)
 {
 	return exchange_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::exchange_dword(const uint32_t value, const uint8_t atIndex)
-{
-	return exchange_word_type<decltype(value)>(value, atIndex);
-}
-
-const oword atomic_oword::exchange_word(const uint16_t value, const uint8_t atIndex)
+oword atomic_oword::exchange_dword(uint32_t value, uint8_t atIndex)
 {
 	return exchange_word_type<decltype(value)>(value, atIndex);
 }
 
-const oword atomic_oword::exchange_byte(const uint8_t value, const uint8_t atIndex)
+oword atomic_oword::exchange_word(uint16_t value, uint8_t atIndex)
 {
 	return exchange_word_type<decltype(value)>(value, atIndex);
 }
 
-void atomic_oword::store(const oword & desired)
+oword atomic_oword::exchange_byte(const uint8_t value, uint8_t atIndex)
+{
+	return exchange_word_type<decltype(value)>(value, atIndex);
+}
+
+void atomic_oword::store(const oword& desired)
 {
 	oword expected(my_val());
 	while (!compare_exchange_strong(expected, desired));
 }
 
-inline const oword atomic_oword::load()
+inline oword atomic_oword::load()
 {
 	oword expectedDesired;
 	cas_internal(expectedDesired.myQWords_s, expectedDesired.myQWords_s);
 	return expectedDesired;
 }
-const oword atomic_oword::fetch_add_to_qword(const uint64_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_add_to_qword(uint64_t value, uint8_t atIndex)
 {
 	return fetch_add_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_add_to_dword(const uint32_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_add_to_dword(uint32_t value, uint8_t atIndex)
 {
 	return fetch_add_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_add_to_word(const uint16_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_add_to_word(uint16_t value, uint8_t atIndex)
 {
 	return fetch_add_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_add_to_byte(const uint8_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_add_to_byte(const uint8_t value, uint8_t atIndex)
 {
 	return fetch_add_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_sub_to_qword(const uint64_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_sub_to_qword(uint64_t value, uint8_t atIndex)
 {
 	return fetch_sub_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_sub_to_dword(const uint32_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_sub_to_dword(uint32_t value, uint8_t atIndex)
 {
 	return fetch_sub_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_sub_to_word(const uint16_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_sub_to_word(uint16_t value, uint8_t atIndex)
 {
 	return fetch_sub_to_word_type<decltype(value)>(value, atIndex);
 }
-const oword atomic_oword::fetch_sub_to_byte(const uint8_t value, const uint8_t atIndex)
+oword atomic_oword::fetch_sub_to_byte(const uint8_t value, uint8_t atIndex)
 {
 	return fetch_sub_to_word_type<decltype(value)>(value, atIndex);
 }
-constexpr const oword & atomic_oword::my_val() const
+constexpr const oword& atomic_oword::my_val() const
 {
 	return myValue;
 }
@@ -266,12 +266,12 @@ constexpr oword & atomic_oword::my_val()
 	return myValue;
 }
 #ifdef _MSC_VER
-const bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* const desired)
+bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* const desired)
 {
 	return _InterlockedCompareExchange128(&myStorage[0], desired[1], desired[0], expected);
 }
 #elif __GNUC__
-const bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* const desired)
+bool atomic_oword::cas_internal(int64_t* const expected, const int64_t* const desired)
 {
 	bool result;
 	__asm__ __volatile__

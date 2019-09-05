@@ -15,7 +15,7 @@
     <ProjectGuid>{F2B36960-1C2E-402A-91BE-CD8C1539E38B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ConcurrentSharedPtr</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
     <ProjectName>atomic_shared_ptr</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
