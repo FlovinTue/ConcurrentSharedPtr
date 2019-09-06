@@ -38,10 +38,10 @@ union oword
 		myQWords_s[0] = from[0];
 		myQWords_s[1] = from[1];
 	}
-	inline constexpr const bool operator==(const oword& other) const {
+	inline constexpr bool operator==(const oword& other) const {
 		return (myQWords[0] == other.myQWords[0]) & (myQWords[1] == other.myQWords[1]);
 	}
-	inline constexpr const bool operator!=(const oword& other) const {
+	inline constexpr bool operator!=(const oword& other) const {
 		return !operator==(other);
 	}
 	uint64_t myQWords[2];
