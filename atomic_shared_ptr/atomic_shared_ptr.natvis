@@ -9,22 +9,22 @@
       nullptr
     </DisplayString>
     <Expand>
-      <Item Name="[object]" Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
+      <ExpandedItem Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
         ($T2*) ((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] ) - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2)))
-      </Item>
+      </ExpandedItem>
       <Item Name="[object]" Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) == 0)">
         nullptr
       </Item>
-      <Item Name="[use_count]" Condition="((myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
+      <Item Name="[ptr_use_count]" Condition="((myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
         *((uint64_t*)(myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))))
       </Item>
-      <Item Name="[use_count]" Condition="((myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))) == 0)">
+      <Item Name="[ptr_use_count]" Condition="((myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))) == 0)">
         0
       </Item>
-      <Item Name="[version]">
+      <Item Name="[ptr_version]">
         myDebugView.myWords[STORAGE_WORD_VERSION]
       </Item>
-      <Item Name="[tag]">
+      <Item Name="[ptr_tag]">
         (bool)(uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)
       </Item>
     </Expand>
