@@ -4,6 +4,7 @@
 #include <iostream>
 
 #define ASP_MUTEX_COMPARE
+
 #include "Tester.h"
 
 #include <intrin.h>
