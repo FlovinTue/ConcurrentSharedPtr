@@ -933,14 +933,6 @@ class shared_ptr : public aspdetail::ptr_base<oword, T, Allocator> {
 public:
 	inline constexpr shared_ptr();
 
-	// The amount of memory requested from the allocator when calling
-	// make_shared
-	static constexpr std::size_t Alloc_Size_Make_Shared = sizeof(aspdetail::control_block<T, Allocator>) + (1 < alignof(T) ? alignof(T) : 2) + sizeof(T);
-
-	// The amount of memory requested from the allocator when taking 
-	// ownership of an object
-	static constexpr std::size_t Alloc_Size_Claim = sizeof(aspdetail::control_block<T, Allocator>);
-
 	inline shared_ptr(const shared_ptr<T, Allocator>& other);
 	inline shared_ptr(shared_ptr<T, Allocator>&& other);
 	inline shared_ptr(std::nullptr_t);
@@ -955,6 +947,14 @@ public:
 
 	shared_ptr<T, Allocator>& operator=(const shared_ptr<T, Allocator>& other);
 	shared_ptr<T, Allocator>& operator=(shared_ptr<T, Allocator>&& other);
+
+	// The amount of memory requested from the allocator when calling
+	// make_shared
+	static constexpr std::size_t alloc_size_make_shared();
+
+	// The amount of memory requested from the allocator when taking 
+	// ownership of an object
+	static constexpr std::size_t alloc_size_claim();
 
 private:
 	shared_ptr(const oword& from);
@@ -1073,6 +1073,16 @@ inline shared_ptr<T, Allocator>& shared_ptr<T, Allocator>::operator=(shared_ptr<
 {
 	std::swap(aspdetail::ptr_base<oword, T, Allocator>::my_val(), other.my_val());
 	return *this;
+}
+template<class T, class Allocator>
+inline constexpr std::size_t shared_ptr<T, Allocator>::alloc_size_make_shared()
+{
+	return sizeof(aspdetail::control_block<T, Allocator>) + (1 < alignof(T) ? alignof(T) : 2) + sizeof(T);
+}
+template<class T, class Allocator>
+inline constexpr std::size_t shared_ptr<T, Allocator>::alloc_size_claim()
+{
+	return sizeof(aspdetail::control_block<T, Allocator>);
 }
 // versioned_raw_ptr does not share in ownership of the object
 template <class T, class Allocator>
