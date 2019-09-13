@@ -3,7 +3,7 @@
 #include "atomic_shared_ptr.h"
 #include <iostream>
 
-//#define CSP_MUTEX_COMPARE
+#define ASP_MUTEX_COMPARE
 #include "Tester.h"
 
 #include <intrin.h>
@@ -21,7 +21,11 @@ int main()
 		const bool
 			doassign(true),
 			doreassign(true),
-			doCAStest(true),
+			doCAStest(true 
+#ifdef ASP_MUTEX_COMPARE
+				& false
+#endif
+			),
 			doreferencetest(true);
 	
 		uint32_t arraySweeps(10000);

@@ -19,6 +19,12 @@ struct ReferenceComparison
 template <class T>
 struct MutextedWrapper
 {
+	std::shared_ptr<T> load() {
+		lock.lock();
+		std::shared_ptr<T> returnValue(ptr);
+		lock.unlock();
+		return returnValue;
+	}
 	MutextedWrapper() = default;
 	MutextedWrapper(std::shared_ptr<T>&& aPtr)
 	{
@@ -26,27 +32,28 @@ struct MutextedWrapper
 	}
 	MutextedWrapper(MutextedWrapper& aOther)
 	{
-		operator=(aOther);
+		operator=(aOther.load());
 	}
 	MutextedWrapper(MutextedWrapper&& aOther)
 	{
-		operator=(aOther);
+		operator=(std::move(aOther));
 	}
-	static std::mutex lock;
+	std::mutex lock;
 
-	MutextedWrapper& operator=(MutextedWrapper& aOther)
+	MutextedWrapper& operator=(std::shared_ptr<T>& aPtr)
 	{
 		lock.lock();
-		ptr = aOther.ptr;
+		ptr = aPtr;
 		lock.unlock();
 
 		return *this;
 	}
-	MutextedWrapper& operator=(MutextedWrapper&& aOther)
+	MutextedWrapper& operator=(std::shared_ptr<T>&& aPtr)
 	{
 		lock.lock();
-		ptr.swap(aOther);
+		ptr.swap(aPtr);
 		lock.unlock();
+		return *this;
 	}
 	void Reset()
 	{
@@ -56,8 +63,6 @@ struct MutextedWrapper
 	}
 	std::shared_ptr<T> ptr;
 };
-template <class T>
-std::mutex MutextedWrapper<T>::lock;
 
 template <class T, uint32_t ArraySize, uint32_t NumThreads>
 class Tester
@@ -79,7 +84,7 @@ public:
 
 	ThreadPool myWorker;
 
-#ifdef CSP_MUTEX_COMPARE
+#ifdef ASP_MUTEX_COMPARE
 	MutextedWrapper<T> myTestArray[ArraySize];
 #else
 	atomic_shared_ptr<T> myTestArray[ArraySize];
@@ -98,20 +103,17 @@ template<class ...InitArgs>
 inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArgs && ...aArgs)
 	: myWorker(NumThreads)
 	, myRng(myRd())
-#ifndef CSP_MUTEX_COMPARE
+#ifndef ASP_MUTEX_COMPARE
 	, myReferenceComparison{ nullptr }
 #endif
 {
 	if (aDoInitializeArray) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-
-#ifdef CSP_MUTEX_COMPARE
-			MutextedWrapper<T> wrapper;
-			wrapper.ptr = std::make_shared<T>(std::forward<InitArgs&&>(aArgs)...);
-			myTestArray[i] = wrapper;
-#else
+#ifndef ASP_MUTEX_COMPARE
 			myTestArray[i] = make_shared<T>(std::forward<InitArgs&&>(aArgs)...);
 			myReferenceComparison[i].myPtr = new T(std::forward<InitArgs&&>(aArgs)...);
+#else
+			myTestArray[i] = std::make_shared<T>(std::forward<InitArgs&&>(aArgs)...);
 #endif
 		}
 	}
@@ -120,7 +122,7 @@ inline Tester<T, ArraySize, NumThreads>::Tester(bool aDoInitializeArray, InitArg
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline Tester<T, ArraySize, NumThreads>::~Tester()
 {
-#ifndef CSP_MUTEX_COMPARE
+#ifndef ASP_MUTEX_COMPARE
 	for (uint32_t i = 0; i < ArraySize; ++i) {
 		delete myReferenceComparison[i].myPtr;
 	}
@@ -171,13 +173,11 @@ inline void Tester<T, ArraySize, NumThreads>::WorkAssign(uint32_t aArrayPasses)
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-#ifdef CSP_MUTEX_COMPARE
-			MutextedWrapper<T> wrapper;
-			wrapper.ptr = std::make_shared<T>();
-			myTestArray[i] = wrapper;
-#else
-			myTestArray[i] = make_shared<T>();
+			myTestArray[i] = 
+#ifdef ASP_MUTEX_COMPARE
+				std::
 #endif
+				make_shared<T>();
 		}
 	}
 }
@@ -199,7 +199,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkReassign(uint32_t aArrayPasses
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline void Tester<T, ArraySize, NumThreads>::WorkReferenceTest(uint32_t aArrayPasses)
 {
-#ifndef CSP_MUTEX_COMPARE
+#ifndef ASP_MUTEX_COMPARE
 	while (!myWorkBlock._My_flag) {
 		std::this_thread::yield();
 	}
@@ -221,7 +221,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkReferenceTest(uint32_t aArrayP
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 {
-#ifndef CSP_MUTEX_COMPARE
+#ifndef ASP_MUTEX_COMPARE
 	while (!myWorkBlock._My_flag) {
 		std::this_thread::yield();
 	}
@@ -248,7 +248,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 {
-#ifndef CSP_MUTEX_COMPARE
+#ifndef ASP_MUTEX_COMPARE
 	uint32_t count(0);
 	for (uint32_t i = 0; i < ArraySize; ++i) {
 		const gdul::aspdetail::control_block<T, gdul::aspdetail::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
