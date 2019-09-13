@@ -59,6 +59,7 @@ struct MutextedWrapper
 template <class T>
 std::mutex MutextedWrapper<T>::lock;
 
+
 template <class T, uint32_t ArraySize, uint32_t NumThreads>
 class Tester
 {
@@ -191,7 +192,11 @@ inline void Tester<T, ArraySize, NumThreads>::WorkReassign(uint32_t aArrayPasses
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
+#ifndef CSP_MUTEX_COMPARE
 			myTestArray[i] = myTestArray[(i + myRng()) % ArraySize].load();
+#else
+			myTestArray[i] = myTestArray[(i + myRng()) % ArraySize];
+#endif
 		}
 	}
 

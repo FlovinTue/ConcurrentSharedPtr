@@ -25,6 +25,9 @@
 #include <stdint.h>
 #include <atomic_oword.h>
 
+
+#undef max
+
 namespace gdul {
 
 namespace aspdetail {
@@ -502,6 +505,7 @@ private:
 	T* const myPtr;
 	Allocator myAllocator;
 };
+
 template<class T, class Allocator>
 inline aspdetail::control_block<T, Allocator>::control_block(std::size_t blockSize, T* object, Allocator& allocator)
 	: myUseCount(1)
