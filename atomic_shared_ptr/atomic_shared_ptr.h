@@ -1001,7 +1001,7 @@ template <class T, class Allocator>
 inline shared_ptr<T, Allocator>::shared_ptr(T * object)
 	: shared_ptr<T, Allocator>()
 {
-	aspdetail::default_allocator alloc;
+	Allocator alloc;
 	aspdetail::ptr_base<oword, T, Allocator>::my_val() = create_control_block(object, aspdetail::default_deleter<T>(), alloc);
 }
 // The Deleter callable has signature void(T* arg)
@@ -1010,7 +1010,7 @@ template<class Deleter>
 inline shared_ptr<T, Allocator>::shared_ptr(T* object, Deleter&& deleter)
 	: shared_ptr<T, Allocator>()
 {
-	aspdetail::default_allocator alloc;
+	Allocator alloc;
 	aspdetail::ptr_base<oword, T, Allocator>::my_val() = create_control_block(object, std::forward<Deleter&&>(deleter), alloc);
 }
 // The Deleter callable has signature void(T* arg)
@@ -1176,6 +1176,12 @@ inline shared_ptr<T, aspdetail::default_allocator> make_shared(Args&& ...args)
 {
 	aspdetail::default_allocator alloc;
 	return make_shared<T>(alloc, std::forward<Args&&>(args)...);
+}
+template<class T, class Allocator, class ...Args>
+inline shared_ptr<T, Allocator> make_shared(Args&& ...args)
+{
+	Allocator alloc;
+	return make_shared<T, Allocator>(alloc, std::forward<Args&&>(args)...);
 }
 template<class T, class Allocator, class ...Args>
 inline shared_ptr<T, Allocator> make_shared(Allocator& allocator, Args&& ...args)
