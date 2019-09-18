@@ -32,27 +32,27 @@ namespace gdul{
 
 union oword
 {
-	oword() : myQWords{ 0 } {}
+	oword() : myU64{ 0 } {}
 	oword(volatile int64_t* from)
 	{
-		myQWords_s[0] = from[0];
-		myQWords_s[1] = from[1];
+		myS64[0] = from[0];
+		myS64[1] = from[1];
 	}
 	inline constexpr bool operator==(const oword& other) const {
-		return (myQWords[0] == other.myQWords[0]) & (myQWords[1] == other.myQWords[1]);
+		return (myU64[0] == other.myU64[0]) & (myU64[1] == other.myU64[1]);
 	}
 	inline constexpr bool operator!=(const oword& other) const {
 		return !operator==(other);
 	}
-	uint64_t myQWords[2];
-	uint32_t myDWords[4];
-	uint16_t myWords[8];
-	uint8_t myBytes[16];
+	uint64_t myU64[2];
+	uint32_t myU32[4];
+	uint16_t myU16[8];
+	uint8_t myU8[16];
 
-	int64_t myQWords_s[2];
-	int32_t myDWords_s[4];
-	int16_t myWords_s[8];
-	int8_t myBytes_s[16];
+	int64_t myS64[2];
+	int32_t myS32[4];
+	int16_t myS16[8];
+	int8_t myS8[16];
 };
 
 class alignas(16) atomic_oword
@@ -121,12 +121,12 @@ inline oword atomic_oword::fetch_add_to_word_type(const typename disable_deducti
 
 	oword expected(my_val());
 	oword desired;
-	word_type_noconst& target(*reinterpret_cast<word_type_noconst*>(&desired.myBytes[scaledIndex]));
+	word_type_noconst& target(*reinterpret_cast<word_type_noconst*>(&desired.myU8[scaledIndex]));
 
 	do {
 		desired = expected;
 		target += value;
-	} while (!cas_internal(expected.myQWords_s, desired.myQWords_s));
+	} while (!cas_internal(expected.myS64, desired.myS64));
 
 	return expected;
 }
@@ -144,12 +144,12 @@ inline oword atomic_oword::fetch_sub_to_word_type(const typename disable_deducti
 
 	oword expected(my_val());
 	oword desired;
-	word_type_no_const& target(*reinterpret_cast<word_type_no_const*>(&desired.myBytes[scaledIndex]));
+	word_type_no_const& target(*reinterpret_cast<word_type_no_const*>(&desired.myU8[scaledIndex]));
 
 	do {
 		desired = expected;
 		target -= value;
-	} while (!cas_internal(expected.myQWords_s, desired.myQWords_s));
+	} while (!cas_internal(expected.myS64, desired.myS64));
 
 	return expected;
 }
@@ -167,12 +167,12 @@ inline oword atomic_oword::exchange_word_type(const typename disable_deduction<w
 
 	oword expected(my_val());
 	oword desired;
-	word_type_noconst& target(*reinterpret_cast<word_type_noconst*>(&desired.myBytes[scaledIndex]));
+	word_type_noconst& target(*reinterpret_cast<word_type_noconst*>(&desired.myU8[scaledIndex]));
 
 	do {
 		desired = expected;
 		target = value;
-	} while (!cas_internal(expected.myQWords_s, desired.myQWords_s));
+	} while (!cas_internal(expected.myS64, desired.myS64));
 
 	return expected;
 }
@@ -186,7 +186,7 @@ inline atomic_oword::atomic_oword(oword & value)
 }
 bool atomic_oword::compare_exchange_strong(oword & expected, const oword& desired)
 {
-	return cas_internal(expected.myQWords_s, desired.myQWords_s);
+	return cas_internal(expected.myS64, desired.myS64);
 }
 oword atomic_oword::exchange(const oword& desired)
 {
@@ -222,7 +222,7 @@ void atomic_oword::store(const oword& desired)
 inline oword atomic_oword::load()
 {
 	oword expectedDesired;
-	cas_internal(expectedDesired.myQWords_s, expectedDesired.myQWords_s);
+	cas_internal(expectedDesired.myS64, expectedDesired.myS64);
 	return expectedDesired;
 }
 oword atomic_oword::fetch_add_to_qword(uint64_t value, uint8_t atIndex)
