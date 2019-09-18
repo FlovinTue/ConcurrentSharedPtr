@@ -15,7 +15,7 @@
 
 int main()
 {
-		const uint32_t testArraySize(32);
+		/*const uint32_t testArraySize(32);
 		const uint32_t numThreads(8);
 		Tester<uint64_t, testArraySize, numThreads> tester(true, rand());
 	
@@ -64,7 +64,7 @@ int main()
 			<< ". The number of threads used were " 
 			<< numThreads
 			<< std::endl;
-
+*/
 		using namespace gdul;
 
 		std::allocator<uint8_t> alloc;
@@ -101,10 +101,10 @@ int main()
 		shared_ptr<int> atenthdes(make_shared<int>(1010));
 		const bool tenres = atenth.compare_exchange_strong(atenthexp, atenthdes);
 		
-		atomic_shared_ptr<int> aeleventh(make_shared<int>(11));
-		versioned_raw_ptr<int> aeleventhexp(aeleventh.get_versioned_raw_ptr());
-		shared_ptr<int> aeleventhdes(make_shared<int>(1111));
-		const bool eleres = aeleventh.compare_exchange_strong(aeleventhexp, aeleventhdes);
+		//atomic_shared_ptr<int> aeleventh(make_shared<int>(11));
+		//versioned_raw_ptr<int> aeleventhexp(aeleventh.get_versioned_raw_ptr());
+		//shared_ptr<int> aeleventhdes(make_shared<int>(1111));
+		//const bool eleres = aeleventh.compare_exchange_strong(aeleventhexp, aeleventhdes);
 		
 		atomic_shared_ptr<int> atwelfth(make_shared<int>(12));
 		shared_ptr<int> atwelfthexp(make_shared<int>(121));
@@ -116,7 +116,7 @@ int main()
 		shared_ptr<int> athirteenthdes(make_shared<int>(131));
 		const bool thirtres = athirteenth.compare_exchange_strong(athirteenthexp, athirteenthdes);
 
-		athirteenth.get_versioned_raw_ptr();
+		//athirteenth.get_versioned_raw_ptr();
 		athirteenthdes.get_versioned_raw_ptr();
 		
 		const shared_ptr<int> preTag(athirteenth.load_and_tag());
@@ -125,30 +125,29 @@ int main()
 		const bool preTagEval(preTag.get_tag());
 		const bool postTagEval(postTag.get_tag());
 
-		const int postTagStore(*athirteenth);
+		//const int postTagStore(*athirteenth);
 
 		atomic_shared_ptr<int> tar(make_shared<int>(5));
 		shared_ptr<int> des(make_shared<int>(6));
 
-		uint32_t iter(50000);
-		auto lama = [&des, &tar, iter]() {
-			for (uint32_t i = 0; i < iter; ++i) {
-				versioned_raw_ptr<int> exp(nullptr);
-				assert(!tar.compare_exchange_strong(exp, des));
-			}
-					};
-		auto lamb = [&des, &tar, iter]() {
-			for (uint32_t i = 0; i < iter; ++i) {
-				versioned_raw_ptr<int> exp(nullptr);
-				assert(!tar.compare_exchange_strong(exp, des));
-			}
-		};
-		std::thread threada(lama);
-		std::thread threadb(lamb);
+		//uint32_t iter(50000);
+		//auto lama = [&des, &tar, iter]() {
+		//	for (uint32_t i = 0; i < iter; ++i) {
+		//		versioned_raw_ptr<int> exp(nullptr);
+		//		assert(!tar.compare_exchange_strong(exp, des));
+		//	}
+		//			};
+		//auto lamb = [&des, &tar, iter]() {
+		//	for (uint32_t i = 0; i < iter; ++i) {
+		//		versioned_raw_ptr<int> exp(nullptr);
+		//		assert(!tar.compare_exchange_strong(exp, des));
+		//	}
+		//};
+		//std::thread threada(lama);
+		//std::thread threadb(lamb);
 
-		threada.join();
-		threadb.join();
-
+		//threada.join();
+		//threadb.join();
 
 		return 0;
 }
