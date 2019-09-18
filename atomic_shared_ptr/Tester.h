@@ -1,13 +1,14 @@
 #pragma once
 
 #include "ThreadPool.h"
-#include "atomic_shared_ptr.h"
+#include "atomic_std_shared_ptr.h"
 #include <random>
 #include <string>
 #include "Timer.h"
 #include <mutex>
 
 using namespace gdul;
+using namespace std;
 
 template <class T>
 struct ReferenceComparison
@@ -235,13 +236,13 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-			shared_ptr<T> desired(make_shared<T>());
-			versioned_raw_ptr<T> expected(myTestArray[i].get_versioned_raw_ptr());
-			const bool resulta = myTestArray[i].compare_exchange_strong(expected, desired);
+			//shared_ptr<T> desired(make_shared<T>());
+			//versioned_raw_ptr<T> expected(myTestArray[i].get_versioned_raw_ptr());
+			//const bool resulta = myTestArray[i].compare_exchange_strong(expected, desired);
 
 			shared_ptr<T> desired_(make_shared<T>());
 			shared_ptr<T> expected_(myTestArray[i].load());
-			const bool resultb = myTestArray[i].compare_exchange_strong(expected, std::move(desired));
+			const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
 		}
 	}
 	mySummary += localSum;
@@ -254,16 +255,16 @@ template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 {
 #ifndef ASP_MUTEX_COMPARE
-	uint32_t count(0);
-	for (uint32_t i = 0; i < ArraySize; ++i) {
-		const gdul::aspdetail::control_block<T, gdul::aspdetail::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
-		const T* const directObject(myTestArray[i].get_owned());
-		const T* const sharedObject(controlBlock->get_owned());
+	//uint32_t count(0);
+	//for (uint32_t i = 0; i < ArraySize; ++i) {
+	//	const gdul::aspdetail::control_block<T, gdul::aspdetail::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
+	//	const T* const directObject(myTestArray[i].get_owned());
+	//	const T* const sharedObject(controlBlock->get_owned());
 
-		if (directObject != sharedObject) {
-			++count;
-		}
-	}
-	std::cout << "Mismatch shared / object count: " << count << std::endl;
+	//	if (directObject != sharedObject) {
+	//		++count;
+	//	}
+	//}
+	//std::cout << "Mismatch shared / object count: " << count << std::endl;
 #endif
 }
