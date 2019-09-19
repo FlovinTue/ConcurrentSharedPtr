@@ -125,6 +125,7 @@ public:
 	inline void unsafe_store(shared_ptr<T, Allocator>&& from);
 
 private:
+	typedef typename aspdetail::ptr_base<oword, T, Allocator>::size_type size_type;
 	typedef typename aspdetail::compressed_storage compressed_storage;
 
 	inline compressed_storage copy_internal();
@@ -151,7 +152,11 @@ private:
 	friend class versioned_raw_ptr<T, Allocator>;
 	friend class aspdetail::ptr_base<oword, T, Allocator>;
 
-	std::atomic<uint64_t> myStorage;
+	union
+	{
+		std::atomic<uint64_t> myStorage;
+		const compressed_storage myDebugView;
+	};
 };
 template <class T, class Allocator>
 inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr()
@@ -207,11 +212,11 @@ template<class PtrType>
 inline bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(typename aspdetail::disable_deduction<PtrType>::type & expected, shared_ptr<T, Allocator>&& desired)
 {
 	const compressed_storage desired_(desired.my_val().myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR]);
-	compressed_storage expected_(myStorage._My_val);
+	compressed_storage expected_(expected.my_val().myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR]);
 
 	typedef typename std::remove_reference<PtrType>::type raw_type;
 
-	const aspdetail::control_block<T, Allocator>* const initialCb(to_control_block(expected.my_val().myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR]));
+	const aspdetail::control_block<T, Allocator>* initialCb(to_control_block(expected.my_val().myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR]));
 
 	do {
 		if (cas_internal(expected_, desired_, true, std::is_same<raw_type, shared_ptr<T, Allocator>>())) {
@@ -538,9 +543,9 @@ private:
 	void destroy();
 
 	std::atomic<size_type> myUseCount;
+	T* const myPtr;
 	std::function<void(T*)> myDeleter;
 	const std::size_t myBlockSize;
-	T* const myPtr;
 	Allocator myAllocator;
 };
 

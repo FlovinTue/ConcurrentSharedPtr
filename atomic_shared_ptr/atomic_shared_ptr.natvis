@@ -2,32 +2,104 @@
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
   <Type Name="gdul::aspdetail::ptr_base&lt;*&gt;">
-    <DisplayString Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
-      {($T2*) (myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask  + 2)))}
-    </DisplayString>
-    <DisplayString Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) == 0)">
+    <DisplayString Condition="(myDebugView.myU64[aspdetail::STORAGE_QWORD_OBJECTPTR] != 0)">
+			{($T2*) myDebugView.myU64[aspdetail::STORAGE_QWORD_OBJECTPTR]}
+		</DisplayString>
+    <DisplayString Condition="(myDebugView.myU64[aspdetail::STORAGE_QWORD_OBJECTPTR] == 0)">
       nullptr
     </DisplayString>
     <Expand >
-      <ExpandedItem Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
-        ($T2*) ((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] ) - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2)))
-      </ExpandedItem>
-      <Item Name="[object]" Condition="((myDebugView.myQWords[STORAGE_QWORD_OBJECTPTR] - ((((uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)) == 128) ? 1 : 0) - ((uint64_t)myDebugView.myWords[STORAGE_WORD_VERSION] * (gdul::aspdetail::Ptr_Mask + 2))) == 0)">
+      <ExpandedItem Condition="(myDebugView.myU64[aspdetail::STORAGE_QWORD_OBJECTPTR] != 0)">
+				($T2*) myDebugView.myU64[aspdetail::STORAGE_QWORD_OBJECTPTR]
+			</ExpandedItem>
+      <Item Name="[object]" Condition="(myDebugView.myU64[aspdetail::STORAGE_QWORD_OBJECTPTR] == 0)">
         nullptr
       </Item>
-      <Item Name="[**ptr_use_count]" Condition="((myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))) != 0)">
-        *((uint64_t*)(myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))))
-      </Item>
-      <Item Name="[**ptr_use_count]" Condition="((myDebugView.myQWords[STORAGE_QWORD_CONTROLBLOCKPTR] - ((uint64_t)myDebugView.myWords[STORAGE_WORD_COPYREQUEST] * (gdul::aspdetail::Ptr_Mask + 2))) == 0)">
-        0
+      <Item Name="[**ptr_use_count]" Condition="(
+				+ ((myDebugView.myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR] >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						!= 0)">
+				*((size_type*)(
+				+ ((myDebugView.myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR] >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+				))
+			</Item>
+      <Item Name="[**ptr_use_count]" Condition="(
+				+ ((myDebugView.myU64[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR] >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						== 0)">
+        0UL
       </Item>
       <Item Name="[**ptr_version]">
-        myDebugView.myWords[STORAGE_WORD_VERSION]
+        (size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION]
       </Item>
       <Item Name="[**ptr_tag]">
-        (bool)(uint8_t)(myDebugView.myBytes[STORAGE_QWORD_OBJECTPTR * 8] * 128)
-      </Item>
+				(bool)(uint8_t)(myDebugView.myU8[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR * 8] * 128)
+			</Item>
     </Expand>
   </Type>
 
+	<Type Name="gdul::atomic_shared_ptr&lt;*&gt;">
+		<DisplayString Condition="(
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						!= 0)">
+			{**(($T1**)
+			(+ 8 
+			+ ((myDebugView.myU64 >> 1) * 2) 
+			- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2)) 
+			- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2)))
+			)}
+		</DisplayString>
+		<DisplayString Condition="(
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						== 0)">
+			nullptr
+		</DisplayString>
+		<Expand >
+			<ExpandedItem Condition="(
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						!= 0)">
+				(($T1)**(($T1**)
+				(+ 8
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2)))
+				))
+			</ExpandedItem>
+			<Item Name="[**ptr_use_count]" Condition="(
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						!= 0)">
+				*((size_type*)(
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+				))
+			</Item>
+			<Item Name="[**ptr_use_count]" Condition="(
+				+ ((myDebugView.myU64 >> 1) * 2)
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION] * (aspdetail::Ptr_Mask + 2))
+				- ((size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] * (aspdetail::Ptr_Mask + 2))
+						== 0)">
+				0UL
+			</Item>
+			<Item Name="[**ptr_version]">
+				(size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION]
+			</Item>
+			<Item Name="[**ptr_tag]">
+				(bool)(uint8_t)(myDebugView.myU8[aspdetail::STORAGE_QWORD_CONTROLBLOCKPTR * 8] * 128)
+			</Item>
+		</Expand>
+	</Type>
+	
 </AutoVisualizer>
