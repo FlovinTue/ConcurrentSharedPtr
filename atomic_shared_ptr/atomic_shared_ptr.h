@@ -51,9 +51,6 @@ union compressed_storage
 };
 
 template <class T>
-class default_deleter;
-
-template <class T>
 struct disable_deduction;
 
 template <class T, class Allocator>
@@ -175,7 +172,7 @@ private:
 };
 template <class T, class Allocator>
 inline constexpr atomic_shared_ptr<T, Allocator>::atomic_shared_ptr()
-	: myStorage{0ULL}
+	: myStorage{ 0ULL }
 {
 	static_assert(std::is_same<Allocator::value_type, uint8_t>(), "value_type for allocator must be uint8_t");
 }
@@ -350,7 +347,7 @@ template<class T, class Allocator>
 inline T * atomic_shared_ptr<T, Allocator>::unsafe_get_owned()
 {
 	aspdetail::control_block_base<T, Allocator>* const cb(get_control_block());
-	if (cb){
+	if (cb) {
 		return cb->get_owned();
 	}
 	return nullptr;
@@ -413,7 +410,7 @@ inline bool atomic_shared_ptr<T, Allocator>::increment_and_try_swap(compressed_s
 		if (myStorage.compare_exchange_strong(expected.myU64, desired_.myU64, std::memory_order_acq_rel)) {
 			return true;
 		}
-	
+
 		if (controlBlock)
 			controlBlock->decref(copyRequests);
 
@@ -483,7 +480,7 @@ inline bool atomic_shared_ptr<T, Allocator>::cas_internal(compressed_storage & e
 		if (controlBlock == to_control_block(oldObjectBlock)) {
 			success = increment_and_try_swap(expected, desired_);
 		}
-		else{
+		else {
 			try_increment(expected_);
 		}
 
@@ -577,7 +574,7 @@ class __declspec(novtable) control_block_base
 public:
 	typedef typename atomic_shared_ptr<T>::size_type size_type;
 
-	control_block_base(std::size_t blockSize, T* object, Allocator& allocator);
+	control_block_base(T* object, Allocator& allocator);
 
 	T* get_owned();
 	const T* get_owned() const;
@@ -595,14 +592,12 @@ protected:
 	T* const myPtr;
 	std::atomic<size_type> myUseCount;
 	Allocator myAllocator;
-	const std::size_t myBlockSize;
 };
 
 template<class T, class Allocator>
-inline control_block_base<T, Allocator>::control_block_base(std::size_t blockSize, T* object, Allocator& allocator)
+inline control_block_base<T, Allocator>::control_block_base(T* object, Allocator& allocator)
 	: myUseCount(1)
 	, myPtr(object)
-	, myBlockSize(blockSize)
 	, myAllocator(allocator)
 {
 }
@@ -638,22 +633,40 @@ template <class T, class Allocator>
 class control_block_make_shared : public control_block_base<T, Allocator>
 {
 public:
+	template <class ...Args>
+	control_block_make_shared(Allocator& alloc, Args&& ...args);
+
 	void destroy() override;
+private:
+	T myOwned;
 };
+template<class T, class Allocator>
+template <class ...Args>
+inline control_block_make_shared<T, Allocator>::control_block_make_shared(Allocator& alloc, Args&& ...args)
+	: control_block_base<T, Allocator>(&myOwned, alloc)
+	, myOwned(std::forward<Args&&>(args)...)
+{
+}
 template<class T, class Allocator>
 inline void control_block_make_shared<T, Allocator>::destroy()
 {
 	Allocator alloc(this->myAllocator);
 	this->myPtr.~T();
 	(*this).~control_block_make_shared<T, Allocator>();
-	alloc.deallocate(reinterpret_cast<uint8_t*>(this), myBlockSize);
+	alloc.deallocate(reinterpret_cast<uint8_t*>(this), sizeof(*this));
 }
 template <class T, class Allocator>
 class control_block_claim : public control_block_base<T, Allocator>
 {
 public:
+	control_block_claim(T* obj, Allocator& alloc);
 	void destroy() override;
 };
+template<class T, class Allocator>
+inline control_block_claim<T, Allocator>::control_block_claim(T * obj, Allocator & alloc)
+	:control_block_base<T, Allocator>(obj, alloc)
+{
+}
 template<class T, class Allocator>
 inline void control_block_claim<T, Allocator>::destroy()
 {
@@ -661,42 +674,38 @@ inline void control_block_claim<T, Allocator>::destroy()
 
 	T* const ptrAddr(this->myPtr);
 	this->myPtr.~T();
-	(*this).~control_block_make_shared<T, Allocator>();
+	(*this).~control_block_claim<T, Allocator>();
 
-	alloc.deallocate(reinterpret_cast<uint8_t*>(this), myBlockSize);
-	alloc.deallocate(reinterpret_cast<uint8_t*>(ptrAddr), myBlockSize);
+	alloc.deallocate(reinterpret_cast<uint8_t*>(this), sizeof(decltype(*this)));
+	alloc.deallocate(reinterpret_cast<uint8_t*>(ptrAddr), sizeof(T));
 }
 template <class T, class Allocator, class Deleter>
 class control_block_claim_custom_delete : public control_block_base<T, Allocator>
 {
 public:
+	control_block_claim_custom_delete(T* obj, Allocator& alloc, Deleter&& deleter);
 	void destroy() override;
 
 private:
 	Deleter myDeleter;
 };
 template<class T, class Allocator, class Deleter>
+inline control_block_claim_custom_delete<T, Allocator, Deleter>::control_block_claim_custom_delete(T* obj, Allocator& alloc, Deleter && deleter)
+	: control_block_base<T, Allocator>(obj, alloc)
+	, myDeleter(std::forward<Deleter&&>(deleter)...)
+{
+}
+template<class T, class Allocator, class Deleter>
 inline void control_block_claim_custom_delete<T, Allocator, Deleter>::destroy()
 {
 	Allocator alloc(this->myAllocator);
 
 	T* const ptrAddr(this->myPtr);
-	(*this).~control_block_make_shared<T, Allocator>();
+	(*this).~control_block_claim_custom_delete<T, Allocator>();
 
-	alloc.deallocate(reinterpret_cast<uint8_t*>(this), myBlockSize);
+	alloc.deallocate(reinterpret_cast<uint8_t*>(this), sizeof(decltype(*this)));
 
 	myDeleter(ptrAddr, alloc);
-}
-template <class T>
-class default_deleter
-{
-public:
-	void operator()(T* object);
-};
-template<class T>
-inline void default_deleter<T>::operator()(T* object)
-{
-	delete object;
 }
 template <class T>
 struct disable_deduction
@@ -709,7 +718,8 @@ enum STORAGE_BYTE : uint8_t
 	STORAGE_BYTE_COPYREQUEST = CopyRequestIndex
 };
 template <class T, class Allocator>
-class ptr_base {
+class ptr_base
+{
 public:
 	typedef std::uint32_t size_type;
 
@@ -867,7 +877,7 @@ template <class T, class Allocator>
 inline constexpr T* ptr_base<T, Allocator>::to_object(const compressed_storage & from)
 {
 	control_block_base<T, Allocator>* const cb(to_control_block(from));
-	if (cb){
+	if (cb) {
 		return cb->get_owned();
 	}
 	return nullptr;
@@ -932,8 +942,10 @@ inline constexpr void ptr_base<T, Allocator>::set_tag()
 {
 	myControlBlockStorage.myU64 |= Tag_Mask;
 }
+};
 template <class T, class Allocator>
-class shared_ptr : public aspdetail::ptr_base<T, Allocator> {
+class shared_ptr : public aspdetail::ptr_base<T, Allocator>
+{
 public:
 	inline constexpr shared_ptr();
 
@@ -942,8 +954,6 @@ public:
 	inline shared_ptr(std::nullptr_t);
 
 	inline explicit shared_ptr(T* object);
-	template <class Deleter>
-	inline explicit shared_ptr(T* object, Deleter&& deleter);
 	template <class Deleter>
 	inline explicit shared_ptr(T* object, Deleter&& deleter, Allocator& allocator);
 
@@ -957,8 +967,14 @@ public:
 	static constexpr std::size_t alloc_size_make_shared();
 
 	// The amount of memory requested from the allocator when taking 
-	// ownership of an object
+	// ownership of an object using default deleter
 	static constexpr std::size_t alloc_size_claim();
+
+	// The amount of memory requested from the allocator when taking 
+	// ownership of an object using a custom deleter
+
+	template <class Deleter>
+	static constexpr std::size_t alloc_size_claim_custom_delete();
 
 private:
 	typedef aspdetail::compressed_storage compressed_storage;
@@ -967,12 +983,13 @@ private:
 
 	template<class Deleter>
 	inline compressed_storage create_control_block(T* object, Deleter&& deleter, Allocator& allocator);
-
-	template <class T, class Allocator, class ...Args>
-	friend shared_ptr<T, Allocator> make_shared<T, Allocator>(Allocator&, Args&&...);
+	inline compressed_storage create_control_block(T* object, Allocator& allocator);
 
 	friend class versioned_raw_ptr<T, Allocator>;
 	friend class atomic_shared_ptr<T, Allocator>;
+
+	template <class T, class Allocator, class ...Args>
+	friend shared_ptr<T, Allocator> make_shared<T, Allocator>(Allocator&, Args&&...);
 };
 template<class T, class Allocator>
 inline constexpr shared_ptr<T, Allocator>::shared_ptr()
@@ -1009,20 +1026,10 @@ inline shared_ptr<T, Allocator>::shared_ptr(T * object)
 	: shared_ptr<T, Allocator>()
 {
 	Allocator alloc;
-	this->myControlBlockStorage = create_control_block(object, aspdetail::default_deleter<T>(), alloc);
+	this->myControlBlockStorage = create_control_block(object, alloc);
 	this->myPtr = this->to_object(this->myControlBlockStorage);
 }
-// The Deleter callable has signature void(T* arg)
-template <class T, class Allocator>
-template<class Deleter>
-inline shared_ptr<T, Allocator>::shared_ptr(T* object, Deleter&& deleter)
-	: shared_ptr<T, Allocator>()
-{
-	Allocator alloc;
-	this->myControlBlockStorage = create_control_block(object, std::forward<Deleter&&>(deleter), alloc);
-	this->myPtr = this->to_object(this->myControlBlockStorage);
-}
-// The Deleter callable has signature void(T* arg)
+// The Deleter callable has signature void(T* obj, Allocator& alloc)
 template<class T, class Allocator>
 template<class Deleter>
 inline shared_ptr<T, Allocator>::shared_ptr(T* object, Deleter && deleter, Allocator & allocator)
@@ -1036,23 +1043,46 @@ inline shared_ptr<T, Allocator>::shared_ptr(const compressed_storage & from)
 	: aspdetail::ptr_base<T, Allocator>(from)
 {
 }
+
 template <class T, class Allocator>
 template<class Deleter>
 inline typename aspdetail::compressed_storage shared_ptr<T, Allocator>::create_control_block(T* object, Deleter&& deleter, Allocator& allocator)
 {
-	aspdetail::control_block_base<T, Allocator>* controlBlock(nullptr);
+	aspdetail::control_block_claim_custom_delete<T, Allocator>* controlBlock(nullptr);
 
-	const std::size_t blockSize(sizeof(aspdetail::control_block_base<T, Allocator>));
+	const std::size_t blockSize(sizeof(aspdetail::control_block_claim_custom_delete<T, Allocator>));
 
 	void* block(nullptr);
 
 	try {
 		block = allocator.allocate(blockSize);
-		controlBlock = new (block) aspdetail::control_block_base<T, Allocator>(blockSize, object, std::forward<Deleter&&>(deleter), allocator);
+		controlBlock = new (block) aspdetail::control_block_claim_custom_delete<T, Allocator>(blockSize, object, std::forward<Deleter&&>(deleter), allocator);
 	}
 	catch (...) {
 		allocator.deallocate(static_cast<uint8_t*>(block), blockSize);
 		deleter(object);
+		throw;
+	}
+
+	return compressed_storage(reinterpret_cast<uint64_t>(controlBlock));
+}
+template<class T, class Allocator>
+inline typename aspdetail::compressed_storage shared_ptr<T, Allocator>::create_control_block(T * object, Allocator& allocator)
+{
+	aspdetail::control_block_claim<T, Allocator>* controlBlock(nullptr);
+
+	const std::size_t blockSize(sizeof(aspdetail::control_block_claim<T, Allocator>));
+
+	void* block(nullptr);
+
+	try {
+		block = allocator.allocate(blockSize);
+		controlBlock = new (block) aspdetail::control_block_claim<T, Allocator>(blockSize, object, allocator);
+	}
+	catch (...) {
+		allocator.deallocate(static_cast<uint8_t*>(block), blockSize);
+		object->~T();
+		allocator.deallocate(static_cast<uint8_t*>(object), sizeof(T));
 		throw;
 	}
 
@@ -1086,16 +1116,23 @@ inline shared_ptr<T, Allocator>& shared_ptr<T, Allocator>::operator=(shared_ptr<
 template<class T, class Allocator>
 inline constexpr std::size_t shared_ptr<T, Allocator>::alloc_size_make_shared()
 {
-	return sizeof(aspdetail::control_block_base<T, Allocator>) + (1 < alignof(T) ? alignof(T) : 2) + sizeof(T);
+	return sizeof(aspdetail::control_block_make_shared<T, Allocator>);
 }
 template<class T, class Allocator>
 inline constexpr std::size_t shared_ptr<T, Allocator>::alloc_size_claim()
 {
-	return sizeof(aspdetail::control_block_base<T, Allocator>);
+	return sizeof(aspdetail::control_block_claim<T, Allocator>);
+}
+template<class T, class Allocator>
+template<class Deleter>
+inline constexpr std::size_t shared_ptr<T, Allocator>::alloc_size_claim_custom_delete()
+{
+	return sizeof(aspdetail::control_block_claim_custom_delete<T, Allocator, Deleter>);
 }
 // versioned_raw_ptr does not share in ownership of the object
 template <class T, class Allocator>
-class versioned_raw_ptr : public aspdetail::ptr_base<T, Allocator> {
+class versioned_raw_ptr : public aspdetail::ptr_base<T, Allocator>
+{
 public:
 	constexpr versioned_raw_ptr();
 	constexpr versioned_raw_ptr(std::nullptr_t);
@@ -1193,38 +1230,24 @@ inline shared_ptr<T, Allocator> make_shared(Args&& ...args)
 	Allocator alloc;
 	return make_shared<T, Allocator>(alloc, std::forward<Args&&>(args)...);
 }
-}
 template<class T, class Allocator, class ...Args>
 inline shared_ptr<T, Allocator> make_shared(Allocator& allocator, Args&& ...args)
 {
-	const std::size_t controlBlockSize(sizeof(aspdetail::control_block_base<T, Allocator>));
-	const std::size_t objectSize(sizeof(T));
-	const std::size_t alignment(1 < alignof(T) ? alignof(T) : 2);
-	const std::size_t blockSize(controlBlockSize + objectSize + alignment);
+	uint8_t* block(allocator.allocate(shared_ptr<T, Allocator>::alloc_size_make_shared()));
 
-	uint8_t* block(allocator.allocate(blockSize));
-
-	const std::size_t controlBlockOffset(0);
-	const std::size_t controlBlockEndAddr(reinterpret_cast<std::size_t>(block + controlBlockSize));
-	const std::size_t alignmentRemainder(controlBlockEndAddr % alignment);
-	const std::size_t alignmentOffset(alignment - (alignmentRemainder ? alignmentRemainder : alignment));
-	const std::size_t objectOffset(controlBlockOffset + controlBlockSize + alignmentOffset);
-
-	aspdetail::control_block_base<T, Allocator> * controlBlock(nullptr);
-	T* object(nullptr);
+	aspdetail::control_block_make_shared<T, Allocator>* controlBlock(nullptr);
 	try {
-		object = new (reinterpret_cast<uint8_t*>(block) + objectOffset) T(std::forward<Args&&>(args)...);
-		controlBlock = new (reinterpret_cast<uint8_t*>(block) + controlBlockOffset) aspdetail::control_block_base<T, Allocator>(blockSize, object, allocator);
+		controlBlock = new (reinterpret_cast<uint8_t*>(block)) aspdetail::control_block_make_shared<T, Allocator>(allocator, std::forward<Args&&>(args)...);
 	}
 	catch (...) {
-		if (object) {
-			(*object).~T();
+		if (controlBlock) {
+			(*controlBlock).~aspdetail::control_block_make_shared<T, Allocator>();
 		}
-		allocator.deallocate(block, blockSize);
+		allocator.deallocate(block, shared_ptr<T, Allocator>::alloc_size_make_shared());
 		throw;
 	}
 
 	return shared_ptr<T, Allocator>(aspdetail::compressed_storage(reinterpret_cast<uint64_t>(controlBlock)));
 }
-}
+};
 #pragma warning(pop)

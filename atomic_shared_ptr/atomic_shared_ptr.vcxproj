@@ -91,7 +91,6 @@
   <ItemGroup>
     <ClInclude Include="atomic_oword.h" />
     <ClInclude Include="atomic_shared_ptr.h" />
-    <ClInclude Include="atomic_shared_ptr_original.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Tester.h" />
     <ClInclude Include="ThreadPool.h" />
