@@ -29,7 +29,7 @@ int main()
 			doreferencetest(true);
 	
 		uint32_t arraySweeps(10000);
-		uint32_t runs(32);
+		uint32_t runs(64);
 		float time(0.f);
 		for (uint32_t i = 0; i < runs; ++i) {
 			time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);

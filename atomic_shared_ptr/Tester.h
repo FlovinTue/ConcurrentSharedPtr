@@ -236,13 +236,10 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-			shared_ptr<T> desired(make_shared<T>());
-			versioned_raw_ptr<T> expected(myTestArray[i].get_versioned_raw_ptr());
-			const bool resulta = myTestArray[i].compare_exchange_strong(expected, desired);
 
-			shared_ptr<T> desired_(make_shared<T>());
-			shared_ptr<T> expected_(myTestArray[i].load());
-			const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
+			//shared_ptr<T> desired_(make_shared<T>());
+			//shared_ptr<T> expected_(myTestArray[i].load());
+			//const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
 		}
 	}
 	mySummary += localSum;
