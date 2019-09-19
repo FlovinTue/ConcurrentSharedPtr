@@ -3,7 +3,7 @@
 #include "atomic_shared_ptr.h"
 #include <iostream>
 
-#define ASP_MUTEX_COMPARE
+//#define ASP_MUTEX_COMPARE
 
 #include "Tester.h"
 
