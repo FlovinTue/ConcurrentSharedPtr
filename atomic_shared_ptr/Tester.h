@@ -1,13 +1,14 @@
 #pragma once
 
 #include "ThreadPool.h"
-#include "atomic_shared_ptr_original.h"
+#include "atomic_shared_ptr.h"
 #include <random>
 #include <string>
 #include "Timer.h"
 #include <mutex>
 
 using namespace gdul;
+#pragma warning(disable : 4324)
 #pragma warning(disable:4200)
 template <class T>
 struct ReferenceComparison
@@ -235,9 +236,9 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
-			//shared_ptr<T> desired(make_shared<T>());
-			//versioned_raw_ptr<T> expected(myTestArray[i].get_versioned_raw_ptr());
-			//const bool resulta = myTestArray[i].compare_exchange_strong(expected, desired);
+			shared_ptr<T> desired(make_shared<T>());
+			versioned_raw_ptr<T> expected(myTestArray[i].get_versioned_raw_ptr());
+			const bool resulta = myTestArray[i].compare_exchange_strong(expected, desired);
 
 			shared_ptr<T> desired_(make_shared<T>());
 			shared_ptr<T> expected_(myTestArray[i].load());

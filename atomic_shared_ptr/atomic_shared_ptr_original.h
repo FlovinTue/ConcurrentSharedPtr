@@ -68,7 +68,7 @@ inline shared_ptr<T, Allocator> make_shared(Allocator&, Args&&...);
 #pragma warning(disable : 4201)
 
 template <class T, class Allocator = aspdetail::default_allocator>
-class atomic_shared_ptr : public aspdetail::ptr_base<atomic_oword, T, Allocator>
+class alignas(64) atomic_shared_ptr : public aspdetail::ptr_base<atomic_oword, T, Allocator>
 {
 public:
 	typedef typename aspdetail::ptr_base<atomic_oword, T, Allocator>::size_type size_type;
