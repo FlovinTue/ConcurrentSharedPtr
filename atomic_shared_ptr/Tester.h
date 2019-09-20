@@ -62,6 +62,20 @@ struct MutextedWrapper
 		ptr.reset();
 		lock.unlock();
 	}
+	bool compare_exchange_strong(std::shared_ptr<T>& expected, std::shared_ptr<T>&& desired)
+	{
+		bool returnValue(false);
+		lock.lock();
+		if (ptr == expected){
+			ptr = std::move(desired);
+			returnValue = true;
+		}
+		else{
+			expected = ptr;
+		}
+		lock.unlock();
+		return returnValue;
+	}
 	std::shared_ptr<T> ptr;
 };
 
@@ -227,7 +241,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkReferenceTest(uint32_t aArrayP
 template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 {
-#ifndef ASP_MUTEX_COMPARE
+
 	while (!myWorkBlock._My_flag) {
 		std::this_thread::yield();
 	}
@@ -237,15 +251,18 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 	for (uint32_t pass = 0; pass < aArrayPasses; ++pass) {
 		for (uint32_t i = 0; i < ArraySize; ++i) {
 
-			//shared_ptr<T> desired_(make_shared<T>());
-			//shared_ptr<T> expected_(myTestArray[i].load());
-			//const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
+#ifndef ASP_MUTEX_COMPARE
+			shared_ptr<T> desired_(make_shared<T>());
+			shared_ptr<T> expected_(myTestArray[i].load());
+			const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
+#else
+			std::shared_ptr<T> desired_(std::make_shared<T>());
+			std::shared_ptr<T> expected_(myTestArray[i].load());
+			const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
+#endif
 		}
 	}
 	mySummary += localSum;
-#else
-	aArrayPasses;
-#endif
 }
 
 template<class T, uint32_t ArraySize, uint32_t NumThreads>

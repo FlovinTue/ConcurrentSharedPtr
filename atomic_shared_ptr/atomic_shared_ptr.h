@@ -35,9 +35,10 @@ namespace aspdetail {
 
 typedef std::allocator<uint8_t> default_allocator;
 
-static const uint64_t Tag_Mask = 1;
-static const uint64_t Ptr_Mask = (std::numeric_limits<uint64_t>::max() >> 16) & ~aspdetail::Tag_Mask;
-static const uint64_t Versioned_Ptr_Mask = (std::numeric_limits<uint64_t>::max() >> 8) & ~aspdetail::Tag_Mask;
+static constexpr uint64_t Tag_Mask = 1;
+static constexpr uint64_t Ptr_Mask = (std::numeric_limits<uint64_t>::max() >> 16) & ~aspdetail::Tag_Mask;
+static constexpr uint64_t Versioned_Ptr_Mask = (std::numeric_limits<uint64_t>::max() >> 8) & ~aspdetail::Tag_Mask;
+static constexpr uint64_t Comparison_Ptr_Mask = Versioned_Ptr_Mask | Tag_Mask;
 
 union compressed_storage
 {
@@ -63,7 +64,7 @@ template <class T, class Allocator, class Deleter>
 class control_block_claim_custom_delete;
 
 
-template <class T, class Allocator = default_allocator>
+template <class T, class Allocator>
 class ptr_base;
 
 enum STORAGE_BYTE : uint8_t;
@@ -116,12 +117,6 @@ public:
 	inline shared_ptr<T, Allocator> exchange(const shared_ptr<T, Allocator>& with);
 	inline shared_ptr<T, Allocator> exchange(shared_ptr<T, Allocator>&& with);
 
-	inline bool set_tag();
-	inline bool get_tag();
-	inline void clear_tag();
-
-	inline uint8_t get_version() const;
-
 	inline shared_ptr<T, Allocator> unsafe_load();
 
 	inline shared_ptr<T, Allocator> unsafe_exchange(const shared_ptr<T, Allocator>& with);
@@ -129,6 +124,15 @@ public:
 
 	inline void unsafe_store(const shared_ptr<T, Allocator>& from);
 	inline void unsafe_store(shared_ptr<T, Allocator>&& from);
+
+	inline bool set_tag();
+	inline bool get_tag();
+	inline void clear_tag();
+
+	inline uint8_t get_version() const;
+
+	operator bool() const;
+	bool operator==(const aspdetail::ptr_base<T, Allocator>& other) const;
 
 	size_type unsafe_use_count() const;
 
@@ -228,17 +232,17 @@ inline bool atomic_shared_ptr<T, Allocator>::compare_exchange_strong(typename as
 
 	typedef typename std::remove_reference<PtrType>::type raw_type;
 
-	const aspdetail::control_block_base<T, Allocator>* initialCb(to_control_block(expected.myControlBlockStorage.myU64));
+	const uint64_t compareBlock(expected.myControlBlockStorage.myU64 & aspdetail::Comparison_Ptr_Mask);
 
 	do {
 		if (cas_internal(expected_, desired_, true, std::is_same<raw_type, shared_ptr<T, Allocator>>())) {
 
-			desired.myControlBlockStorage = compressed_storage();
+			desired.reset();
 
 			return true;
 		}
 
-	} while (initialCb == to_control_block(expected_));
+	} while (compareBlock == (expected_.myU64 & aspdetail::Comparison_Ptr_Mask));
 
 	expected = raw_type(expected_);
 
@@ -271,7 +275,7 @@ template<class T, class Allocator>
 inline void atomic_shared_ptr<T, Allocator>::store(shared_ptr<T, Allocator>&& from)
 {
 	store_internal(from.myControlBlockStorage.myU64);
-	from.myControlBlockStorage = compressed_storage();
+	from.reset();
 }
 template<class T, class Allocator>
 inline shared_ptr<T, Allocator> atomic_shared_ptr<T, Allocator>::exchange(const shared_ptr<T, Allocator>& with)
@@ -282,7 +286,7 @@ template<class T, class Allocator>
 inline shared_ptr<T, Allocator> atomic_shared_ptr<T, Allocator>::exchange(shared_ptr<T, Allocator>&& with)
 {
 	compressed_storage previous(exchange_internal(with.myControlBlockStorage, false));
-	with.myControlBlockStorage = compressed_storage();
+	with.reset();
 	return shared_ptr<T, Allocator>(previous);
 }
 template<class T, class Allocator>
@@ -299,7 +303,7 @@ template<class T, class Allocator>
 inline shared_ptr<T, Allocator> atomic_shared_ptr<T, Allocator>::unsafe_exchange(shared_ptr<T, Allocator>&& with)
 {
 	const compressed_storage previous(unsafe_exchange_internal(with.myControlBlockStorage));
-	with.myControlBlockStorage = compressed_storage();
+	with.reset();
 	return shared_ptr<T, Allocator>(previous);
 }
 template<class T, class Allocator>
@@ -311,7 +315,7 @@ template<class T, class Allocator>
 inline void atomic_shared_ptr<T, Allocator>::unsafe_store(shared_ptr<T, Allocator>&& from)
 {
 	unsafe_store_internal(from.myControlBlockStorage);
-	from.myControlBlockStorage = compressed_storage();
+	from.reset();
 }
 
 template<class T, class Allocator>
@@ -377,6 +381,16 @@ template<class T, class Allocator>
 inline uint8_t atomic_shared_ptr<T, Allocator>::get_version() const
 {
 	return compressed_storage(myStorage.load(std::memory_order_acquire)).myU8;
+}
+template<class T, class Allocator>
+inline atomic_shared_ptr<T, Allocator>::operator bool() const
+{
+	return static_cast<bool>(myStorage.load(std::memory_order_acquire) & aspdetail::Ptr_Mask);
+}
+template<class T, class Allocator>
+inline bool atomic_shared_ptr<T, Allocator>::operator==(const aspdetail::ptr_base<T, Allocator>& other) const
+{
+	return (myStorage.load(std::memory_order_acquire) & aspdetail::Ptr_Mask) == (other.myControlBlockStorage.myU64 & aspdetail::Ptr_Mask);
 }
 template<class T, class Allocator>
 inline bool atomic_shared_ptr<T, Allocator>::get_tag()
@@ -461,6 +475,8 @@ inline bool atomic_shared_ptr<T, Allocator>::cas_internal(compressed_storage & e
 {
 	bool success(false);
 
+	const uint64_t originalCompare(expected.myU64 & aspdetail::Comparison_Ptr_Mask);
+
 	aspdetail::control_block_base<T, Allocator>* controlBlock(to_control_block(expected));
 
 	compressed_storage desired_(desired);
@@ -469,20 +485,17 @@ inline bool atomic_shared_ptr<T, Allocator>::cas_internal(compressed_storage & e
 
 	if (expected.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST]) {
 
-		compressed_storage expected_(myStorage.fetch_add(aspdetail::Copy_Request_Step, std::memory_order_acq_rel));
-		expected_.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] += 1;
+		expected = myStorage.fetch_add(aspdetail::Copy_Request_Step, std::memory_order_acq_rel);
+		expected.myU8[aspdetail::STORAGE_BYTE_COPYREQUEST] += 1;
 
-		controlBlock = to_control_block(expected_);
-
-		const uint64_t oldObjectBlock(expected.myU64);
-		expected = expected_;
-
-		if (controlBlock == to_control_block(oldObjectBlock)) {
+		if ((expected.myU64 & aspdetail::Comparison_Ptr_Mask) == originalCompare) {
 			success = increment_and_try_swap(expected, desired_);
 		}
 		else {
-			try_increment(expected_);
+			try_increment(expected);
 		}
+
+		controlBlock = to_control_block(expected);
 
 		if (controlBlock) {
 			controlBlock->decref(static_cast<size_type>(!(captureOnFailure & !success)) + static_cast<size_type>(decrementPrevious & success));
@@ -494,7 +507,7 @@ inline bool atomic_shared_ptr<T, Allocator>::cas_internal(compressed_storage & e
 		if (static_cast<bool>(controlBlock) & decrementPrevious & success) {
 			controlBlock->decref();
 		}
-		if (!success & captureOnFailure) {
+		if (!success & captureOnFailure & (originalCompare != (expected.myU64 & aspdetail::Comparison_Ptr_Mask))) {
 			expected = copy_internal();
 		}
 	}
@@ -569,7 +582,7 @@ inline typename aspdetail::compressed_storage atomic_shared_ptr<T, Allocator>::e
 }
 namespace aspdetail {
 template <class T, class Allocator>
-class __declspec(novtable) control_block_base
+class control_block_base
 {
 public:
 	typedef typename atomic_shared_ptr<T>::size_type size_type;
@@ -585,6 +598,7 @@ public:
 	void decref(size_type count = 1);
 
 protected:
+	virtual ~control_block_base() = default;
 	virtual void destroy() = 0;
 
 	friend class atomic_shared_ptr<T>;
@@ -651,9 +665,9 @@ template<class T, class Allocator>
 inline void control_block_make_shared<T, Allocator>::destroy()
 {
 	Allocator alloc(this->myAllocator);
-	this->myPtr.~T();
+	this->myPtr->~T();
 	(*this).~control_block_make_shared<T, Allocator>();
-	alloc.deallocate(reinterpret_cast<uint8_t*>(this), sizeof(*this));
+	alloc.deallocate(reinterpret_cast<uint8_t*>(this), shared_ptr<T, Allocator>::alloc_size_make_shared());
 }
 template <class T, class Allocator>
 class control_block_claim : public control_block_base<T, Allocator>
@@ -673,7 +687,7 @@ inline void control_block_claim<T, Allocator>::destroy()
 	Allocator alloc(this->myAllocator);
 
 	T* const ptrAddr(this->myPtr);
-	this->myPtr.~T();
+	this->myPtr->~T();
 	(*this).~control_block_claim<T, Allocator>();
 
 	alloc.deallocate(reinterpret_cast<uint8_t*>(this), sizeof(decltype(*this)));
@@ -692,7 +706,7 @@ private:
 template<class T, class Allocator, class Deleter>
 inline control_block_claim_custom_delete<T, Allocator, Deleter>::control_block_claim_custom_delete(T* obj, Allocator& alloc, Deleter && deleter)
 	: control_block_base<T, Allocator>(obj, alloc)
-	, myDeleter(std::forward<Deleter&&>(deleter)...)
+	, myDeleter(std::forward<Deleter&&>(deleter))
 {
 }
 template<class T, class Allocator, class Deleter>
@@ -701,7 +715,7 @@ inline void control_block_claim_custom_delete<T, Allocator, Deleter>::destroy()
 	Allocator alloc(this->myAllocator);
 
 	T* const ptrAddr(this->myPtr);
-	(*this).~control_block_claim_custom_delete<T, Allocator>();
+	(*this).~control_block_claim_custom_delete<T, Allocator, Deleter>();
 
 	alloc.deallocate(reinterpret_cast<uint8_t*>(this), sizeof(decltype(*this)));
 
@@ -760,6 +774,8 @@ protected:
 	inline constexpr ptr_base();
 	inline constexpr ptr_base(const compressed_storage& from);
 
+	inline void reset();
+
 	constexpr control_block_base<T, Allocator>* to_control_block(const compressed_storage& from);
 	constexpr T* to_object(const compressed_storage& from);
 
@@ -783,6 +799,12 @@ inline constexpr ptr_base<T, Allocator>::ptr_base(const compressed_storage & fro
 	myControlBlockStorage = from;
 	myControlBlockStorage.myU8[STORAGE_BYTE_COPYREQUEST] = 0;
 	myPtr = to_object(from);
+}
+template<class T, class Allocator>
+inline void ptr_base<T, Allocator>::reset()
+{
+	myControlBlockStorage = compressed_storage();
+	myPtr = nullptr;
 }
 template <class T, class Allocator>
 inline constexpr ptr_base<T, Allocator>::operator bool() const
@@ -1048,19 +1070,19 @@ template <class T, class Allocator>
 template<class Deleter>
 inline typename aspdetail::compressed_storage shared_ptr<T, Allocator>::create_control_block(T* object, Deleter&& deleter, Allocator& allocator)
 {
-	aspdetail::control_block_claim_custom_delete<T, Allocator>* controlBlock(nullptr);
+	aspdetail::control_block_claim_custom_delete<T, Allocator, Deleter>* controlBlock(nullptr);
 
-	const std::size_t blockSize(sizeof(aspdetail::control_block_claim_custom_delete<T, Allocator>));
+	const std::size_t blockSize(alloc_size_claim_custom_delete<Deleter>());
 
 	void* block(nullptr);
 
 	try {
 		block = allocator.allocate(blockSize);
-		controlBlock = new (block) aspdetail::control_block_claim_custom_delete<T, Allocator>(blockSize, object, std::forward<Deleter&&>(deleter), allocator);
+		controlBlock = new (block) aspdetail::control_block_claim_custom_delete<T, Allocator, Deleter>(object, allocator, std::forward<Deleter&&>(deleter));
 	}
 	catch (...) {
 		allocator.deallocate(static_cast<uint8_t*>(block), blockSize);
-		deleter(object);
+		deleter(object, allocator);
 		throw;
 	}
 
@@ -1071,18 +1093,18 @@ inline typename aspdetail::compressed_storage shared_ptr<T, Allocator>::create_c
 {
 	aspdetail::control_block_claim<T, Allocator>* controlBlock(nullptr);
 
-	const std::size_t blockSize(sizeof(aspdetail::control_block_claim<T, Allocator>));
+	const std::size_t blockSize(alloc_size_claim());
 
 	void* block(nullptr);
 
 	try {
 		block = allocator.allocate(blockSize);
-		controlBlock = new (block) aspdetail::control_block_claim<T, Allocator>(blockSize, object, allocator);
+		controlBlock = new (block) aspdetail::control_block_claim<T, Allocator>(object, allocator);
 	}
 	catch (...) {
 		allocator.deallocate(static_cast<uint8_t*>(block), blockSize);
 		object->~T();
-		allocator.deallocate(static_cast<uint8_t*>(object), sizeof(T));
+		allocator.deallocate(reinterpret_cast<uint8_t*>(object), sizeof(T));
 		throw;
 	}
 
@@ -1233,20 +1255,19 @@ inline shared_ptr<T, Allocator> make_shared(Args&& ...args)
 template<class T, class Allocator, class ...Args>
 inline shared_ptr<T, Allocator> make_shared(Allocator& allocator, Args&& ...args)
 {
-	uint8_t* block(allocator.allocate(shared_ptr<T, Allocator>::alloc_size_make_shared()));
-
+	uint8_t* const block(allocator.allocate(shared_ptr<T, Allocator>::alloc_size_make_shared()));
+	
 	aspdetail::control_block_make_shared<T, Allocator>* controlBlock(nullptr);
 	try {
 		controlBlock = new (reinterpret_cast<uint8_t*>(block)) aspdetail::control_block_make_shared<T, Allocator>(allocator, std::forward<Args&&>(args)...);
 	}
 	catch (...) {
 		if (controlBlock) {
-			(*controlBlock).~aspdetail::control_block_make_shared<T, Allocator>();
+			(*controlBlock).~control_block_make_shared<T, Allocator>();
 		}
 		allocator.deallocate(block, shared_ptr<T, Allocator>::alloc_size_make_shared());
 		throw;
 	}
-
 	return shared_ptr<T, Allocator>(aspdetail::compressed_storage(reinterpret_cast<uint64_t>(controlBlock)));
 }
 };
