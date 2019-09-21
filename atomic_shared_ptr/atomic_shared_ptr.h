@@ -126,6 +126,7 @@ public:
 	inline void unsafe_store(shared_ptr<T, Allocator>&& from);
 
 	inline uint8_t get_version() const;
+	inline bool get_tag() const;
 
 	operator bool() const;
 	bool operator==(const aspdetail::ptr_base<T, Allocator>& other) const;
@@ -369,6 +370,11 @@ template<class T, class Allocator>
 inline uint8_t atomic_shared_ptr<T, Allocator>::get_version() const
 {
 	return compressed_storage(myStorage.load(std::memory_order_acquire)).myU8;
+}
+template<class T, class Allocator>
+inline bool atomic_shared_ptr<T, Allocator>::get_tag() const
+{
+	return myStorage.load(std::memory_order_acquire) & aspdetail::Tag_Mask;
 }
 template<class T, class Allocator>
 inline atomic_shared_ptr<T, Allocator>::operator bool() const

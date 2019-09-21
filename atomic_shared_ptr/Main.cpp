@@ -11,7 +11,7 @@
 #include <functional>
 #include <assert.h>
 #include <vld.h>
-
+#include <atomic_oword.h>
 int main()
 {
 		const uint32_t testArraySize(32);
