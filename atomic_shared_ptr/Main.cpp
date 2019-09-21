@@ -21,7 +21,7 @@ int main()
 		const bool
 			doassign(true),
 			doreassign(true),
-			doCAStest(false 
+			doCAStest(true 
 			),
 			doreferencetest(false);
 	
