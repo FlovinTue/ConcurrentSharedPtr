@@ -11,10 +11,10 @@
 #include <functional>
 #include <assert.h>
 #include <vld.h>
-#include <atomic_oword.h>
+
 int main()
 {
-		const uint32_t testArraySize(32);
+		/*const uint32_t testArraySize(32);
 		const uint32_t numThreads(8);
 		Tester<uint64_t, testArraySize, numThreads> tester(true, rand());
 	
@@ -26,7 +26,7 @@ int main()
 			doreferencetest(false);
 	
 		uint32_t arraySweeps(10000);
-		uint32_t runs(32);
+		uint32_t runs(256);
 		float time(0.f);
 		for (uint32_t i = 0; i < runs; ++i) {
 			time += tester.Execute(arraySweeps, doassign, doreassign, doCAStest, doreferencetest);
@@ -59,7 +59,7 @@ int main()
 			<< referencetest
 			<< ". The number of threads used were " 
 			<< numThreads
-			<< std::endl;
+			<< std::endl;*/
 
 		using namespace gdul;
 
@@ -98,10 +98,10 @@ int main()
 		shared_ptr<int> atenthdes(make_shared<int>(1010));
 		const bool tenres = atenth.compare_exchange_strong(atenthexp, atenthdes);
 		
-		//atomic_shared_ptr<int> aeleventh(make_shared<int>(11));
-		//versioned_raw_ptr<int> aeleventhexp(aeleventh.get_versioned_raw_ptr());
-		//shared_ptr<int> aeleventhdes(make_shared<int>(1111));
-		//const bool eleres = aeleventh.compare_exchange_strong(aeleventhexp, aeleventhdes);
+		atomic_shared_ptr<int> aeleventh(make_shared<int>(11));
+		versioned_raw_ptr<int> aeleventhexp(aeleventh.unsafe_get_versioned_raw_ptr());
+		shared_ptr<int> aeleventhdes(make_shared<int>(1111));
+		const bool eleres = aeleventh.compare_exchange_strong(aeleventhexp, aeleventhdes);
 		
 		atomic_shared_ptr<int> atwelfth(make_shared<int>(12));
 		shared_ptr<int> atwelfthexp(make_shared<int>(121));
@@ -113,14 +113,16 @@ int main()
 		shared_ptr<int> athirteenthdes(make_shared<int>(131));
 		const bool thirtres = athirteenth.compare_exchange_strong(athirteenthexp, athirteenthdes);
 
-		//athirteenth.get_versioned_raw_ptr();
+		athirteenth.unsafe_get_versioned_raw_ptr();
 		athirteenthdes.get_versioned_raw_ptr();
 		
-		const shared_ptr<int> preTag(athirteenth.load_and_tag());
-		const shared_ptr<int> postTag(athirteenth.load_and_tag());
+		// Removed tagging for now. Made things complicated
 
-		const bool preTagEval(preTag.get_tag());
-		const bool postTagEval(postTag.get_tag());
+		//const shared_ptr<int> preTag(athirteenth.load_and_tag());
+		//const shared_ptr<int> postTag(athirteenth.load_and_tag());
+		//
+		//const bool preTagEval(preTag.get_tag());
+		//const bool postTagEval(postTag.get_tag());
 
 		//const int postTagStore(*athirteenth);
 

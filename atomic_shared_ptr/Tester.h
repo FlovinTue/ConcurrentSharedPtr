@@ -6,6 +6,7 @@
 #include <string>
 #include "Timer.h"
 #include <mutex>
+#include <cassert>
 
 using namespace gdul;
 #pragma warning(disable : 4324)
@@ -252,10 +253,25 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 		for (uint32_t i = 0; i < ArraySize; ++i) {
 
 #ifndef ASP_MUTEX_COMPARE
+			shared_ptr<T> desired(make_shared<T>());
+			shared_ptr<T> expected(myTestArray[i].load());
+			versioned_raw_ptr<T> check(expected);
+			const bool resulta = myTestArray[i].compare_exchange_strong(expected, std::move(desired));
+
+			if (!(resulta == (expected == check))) {
+				throw std::runtime_error("output from expected do not correspond to CAS results");
+			}
+
 			shared_ptr<T> desired_(make_shared<T>());
-			shared_ptr<T> expecteds_(myTestArray[i].load());
-			versioned_raw_ptr<T> expected_(expecteds_);
-			const bool resultb = myTestArray[i].compare_exchange_strong(expected_, std::move(desired_));
+			shared_ptr<T> expected_(myTestArray[i].load());
+			versioned_raw_ptr<T> rawExpected(expected_);
+			versioned_raw_ptr<T> check_(expected_);
+			const bool resultb = myTestArray[i].compare_exchange_strong(rawExpected, std::move(desired_));
+
+			if (!(resultb == (rawExpected == check_))) {
+				throw std::runtime_error("output from expected do not correspond to CAS results");
+			}
+
 #else
 			std::shared_ptr<T> desired_(std::make_shared<T>());
 			std::shared_ptr<T> expected_(myTestArray[i].load());
@@ -263,6 +279,7 @@ inline void Tester<T, ArraySize, NumThreads>::WorkCAS(uint32_t aArrayPasses)
 #endif
 		}
 	}
+
 	mySummary += localSum;
 }
 
@@ -270,16 +287,16 @@ template<class T, uint32_t ArraySize, uint32_t NumThreads>
 inline void Tester<T, ArraySize, NumThreads>::CheckPointers() const
 {
 #ifndef ASP_MUTEX_COMPARE
-	//uint32_t count(0);
-	//for (uint32_t i = 0; i < ArraySize; ++i) {
-	//	const gdul::aspdetail::control_block<T, gdul::aspdetail::default_allocator>* const controlBlock(myTestArray[i].get_control_block());
-	//	const T* const directObject(myTestArray[i].get_owned());
-	//	const T* const sharedObject(controlBlock->get_owned());
-	//
-	//	if (directObject != sharedObject) {
-	//		++count;
-	//	}
-	//}
-	//std::cout << "Mismatch shared / object count: " << count << std::endl;
+	uint32_t count(0);
+	for (uint32_t i = 0; i < ArraySize; ++i) {
+		const gdul::aspdetail::control_block_base<T, gdul::aspdetail::default_allocator>* const controlBlock(myTestArray[i].unsafe_get_control_block());
+		const T* const directObject(myTestArray[i].unsafe_get_owned());
+		const T* const sharedObject(controlBlock->get_owned());
+	
+		if (directObject != sharedObject) {
+			++count;
+		}
+	}
+	std::cout << "Mismatch shared / object count: " << count << std::endl;
 #endif
 }

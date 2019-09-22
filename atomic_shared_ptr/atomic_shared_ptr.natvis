@@ -37,9 +37,6 @@
       <Item Name="[**ptr_version]">
 				(size_type)myControlBlockStorage.myU8[aspdetail::STORAGE_BYTE_VERSION]
 			</Item>
-      <Item Name="[**ptr_tag]">
-				((myControlBlockStorage.myU64 >> 1) * 2) != myControlBlockStorage.myU64
-			</Item>
     </Expand>
   </Type>
 
@@ -99,9 +96,6 @@
 			</Item>
 			<Item Name="[**ptr_version]">
 				(size_type)myDebugView.myU8[aspdetail::STORAGE_BYTE_VERSION]
-			</Item>
-			<Item Name="[**ptr_tag]">
-				((myDebugView.myU64 >> 1) * 2) != myDebugView.myU64
 			</Item>
 		</Expand>
 	</Type>
